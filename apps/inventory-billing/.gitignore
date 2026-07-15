@@ -1,0 +1,12 @@
+node_modules
+dist
+dist-debug
+.*.js.map
+.*.d.ts
+!jest-setup.ts
+build
+.env
+.env.local
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
