@@ -55,14 +55,15 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    ports:
+      - "3002:3002"
     networks:
       - barber-flow-network
 
-  # ---- MS1: Appointments (planificado) ----
+  # ---- MS1: Appointments (construido) ----
   appointments:
     build: ./apps/appointments
     container_name: ms-appointments
-    profiles: ["full"]
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
@@ -79,6 +80,8 @@ services:
       redis:
         condition: service_started
     restart: unless-stopped
+    ports:
+      - "3001:3001"
     networks:
       - barber-flow-network
 
@@ -100,6 +103,8 @@ services:
       redis:
         condition: service_started
     restart: unless-stopped
+    ports:
+      - "3003:3003"
     networks:
       - barber-flow-network
 
