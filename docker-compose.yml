@@ -1,0 +1,130 @@
+# =============================================================================
+#  docker-compose.yml  —  Barber Flow
+#  Gateway + 3 microservicios + Redis (eventos) + PostgreSQL.
+#
+#  Servicios existentes:       docker compose up -d --build
+#  Todos (incl. planificados): docker compose --profile full up -d --build
+# =============================================================================
+
+services:
+
+  # ---- Infraestructura base ----
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: barber-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-barber_flow}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - barber-flow-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: barber-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    networks:
+      - barber-flow-network
+
+  # ---- MS2: Services & Staff (construido) ----
+
+  services-staff:
+    build: ./apps/services-staff
+    container_name: ms-services-staff
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DB_DATABASE: ${POSTGRES_DB:-barber_flow}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - barber-flow-network
+
+  # ---- MS1: Appointments (planificado) ----
+  appointments:
+    build: ./apps/appointments
+    container_name: ms-appointments
+    profiles: ["full"]
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DB_DATABASE: ${POSTGRES_DB:-barber_flow}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SVC_SERVICES_STAFF_HOST: services-staff
+      SVC_SERVICES_STAFF_PORT: 3002
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - barber-flow-network
+
+  # ---- MS3: Inventory & Billing (planificado) ----
+  inventory-billing:
+    build: ./apps/inventory-billing
+    container_name: ms-inventory-billing
+    profiles: ["full"]
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DB_DATABASE: ${POSTGRES_DB:-barber_flow}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - barber-flow-network
+
+  # ---- API Gateway (planificado) ----
+  api-gateway:
+    build: ./apps/api-gateway
+    container_name: api-gateway
+    profiles: ["full"]
+    environment:
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
+      APPOINTMENTS_HOST: appointments
+      APPOINTMENTS_PORT: 3001
+    ports:
+      - "3000:3000"
+    depends_on:
+      - appointments
+    restart: unless-stopped
+    networks:
+      - barber-flow-network
+
+volumes:
+  postgres-data:
+
+networks:
+  barber-flow-network:
+    driver: bridge

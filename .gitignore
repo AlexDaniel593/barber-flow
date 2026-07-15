@@ -1,0 +1,14 @@
+# guide docs
+TABLERO_KANBAN.md
+GUIA_GENERAL.md
+README.plantilla.md
+TAREA_1.md
+
+# IDE
+.vscode/
+.idea/
+
+# Env
+.env
+.env.local
+.env.*.local
