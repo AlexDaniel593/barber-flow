@@ -82,11 +82,10 @@ services:
     networks:
       - barber-flow-network
 
-  # ---- MS3: Inventory & Billing (planificado) ----
+  # ---- MS3: Inventory & Billing (construido) ----
   inventory-billing:
     build: ./apps/inventory-billing
     container_name: ms-inventory-billing
-    profiles: ["full"]
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
