@@ -1,6 +1,8 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, Inject, NotFoundException, BadRequestException } from '@nestjs/common';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Repository } from 'typeorm';
+import { firstValueFrom } from 'rxjs';
 import { Invoice } from './entities/invoice.entity';
 import { InvoiceItem } from './entities/invoice-item.entity';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
@@ -18,10 +20,28 @@ export class InvoicesService {
     private readonly invoiceRepository: Repository<Invoice>,
     @InjectRepository(InvoiceItem)
     private readonly invoiceItemRepository: Repository<InvoiceItem>,
+    @Inject('SERVICES_STAFF_CLIENT')
+    private readonly staffClient: ClientProxy,
   ) {}
 
   async create(dto: CreateInvoiceDto): Promise<Invoice> {
     try {
+      try {
+        const stylist = await firstValueFrom(
+          this.staffClient.send({ cmd: 'stylists.findOne' }, { id: dto.stylistId }),
+        );
+
+        if (!stylist) {
+          throw new RpcException(
+            `El estilista con ID ${dto.stylistId} no existe en la base de datos de Staff.`,
+          );
+        }
+      } catch {
+        throw new RpcException(
+          `El estilista con ID ${dto.stylistId} no existe en la base de datos de Staff.`,
+        );
+      }
+
       const items = dto.items.map((item) =>
         this.invoiceItemRepository.create({
           description: item.description,
@@ -38,6 +58,7 @@ export class InvoicesService {
 
       const invoice = this.invoiceRepository.create({
         appointmentId: dto.appointmentId,
+        stylistId: dto.stylistId,
         subtotal,
         tax,
         discount,
@@ -50,6 +71,9 @@ export class InvoicesService {
       return await this.invoiceRepository.save(invoice);
     } catch (error) {
       this.logger.error(`Error creating invoice: ${error.message}`, error.stack);
+      if (error instanceof RpcException) {
+        throw error;
+      }
       throw new BadRequestException(`Failed to create invoice: ${error.message}`);
     }
   }

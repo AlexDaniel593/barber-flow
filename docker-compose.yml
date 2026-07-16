@@ -97,10 +97,14 @@ services:
       DB_DATABASE: ${POSTGRES_DB:-barber_flow}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      SERVICES_STAFF_HOST: services-staff
+      SERVICES_STAFF_PORT: 3002
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_started
+      services-staff:
         condition: service_started
     restart: unless-stopped
     ports:

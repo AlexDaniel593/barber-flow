@@ -32,6 +32,9 @@ export class CreateInvoiceDto {
   @IsUUID()
   appointmentId: string;
 
+  @IsUUID()
+  stylistId: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => InvoiceItemInput)
