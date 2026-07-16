@@ -1,0 +1,515 @@
+{
+  "info": {
+    "name": "Barber Flow API",
+    "description": "API Gateway de Barber Flow.\n\nAutenticación JWT real:\n1. Register → crea usuario\n2. Login → obtienes access_token (se guarda automáticamente en variable {{token}})\n3. El resto de endpoints requieren el token\n\nFlujo completo de prueba:\n1. Register / Login\n2. Create Stylist\n3. Create Service\n4. Create Appointment (usando stylistId y serviceId de pasos anteriores)\n5. Check Availability\n6. Update Status (COMPLETED)\n7. Create Invoice\n8. Reschedule / Cancel",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "barber-flow"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "1. Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@barberflow.com\",\n  \"password\": \"123456\",\n  \"name\": \"Admin Barber\",\n  \"role\": \"admin\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@barberflow.com\",\n  \"password\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.access_token) {",
+                  "  pm.collectionVariables.set('token', jsonData.access_token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/auth/profile",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "profile"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Stylists",
+      "item": [
+        {
+          "name": "Create Stylist",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Carlos Estilista\",\n  \"email\": \"carlos@barberflow.com\",\n  \"phone\": \"0991234567\",\n  \"specialties\": [\"Corte\", \"Barba\", \"Tinte\"],\n  \"workingHours\": {\n    \"monday\": \"09:00-18:00\",\n    \"tuesday\": \"09:00-18:00\",\n    \"wednesday\": \"09:00-18:00\",\n    \"thursday\": \"09:00-18:00\",\n    \"friday\": \"09:00-18:00\",\n    \"saturday\": \"10:00-16:00\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/stylists",
+              "host": ["{{base_url}}"],
+              "path": ["api", "stylists"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "  pm.collectionVariables.set('stylist_id', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "List All Stylists",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/stylists",
+              "host": ["{{base_url}}"],
+              "path": ["api", "stylists"]
+            }
+          }
+        },
+        {
+          "name": "Get Stylist by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/stylists/{{stylist_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "stylists", "{{stylist_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Stylist",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Carlos Actualizado\",\n  \"phone\": \"0999876543\",\n  \"specialties\": [\"Corte\", \"Barba\", \"Tinte\", \"Alisado\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/stylists/{{stylist_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "stylists", "{{stylist_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Stylist",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/stylists/{{stylist_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "stylists", "{{stylist_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Services",
+      "item": [
+        {
+          "name": "Create Service",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Corte Clásico\",\n  \"description\": \"Corte de cabello tradicional con tijera y máquina\",\n  \"price\": 15.00,\n  \"duration\": 30,\n  \"category\": \"Corte\",\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/services",
+              "host": ["{{base_url}}"],
+              "path": ["api", "services"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "  pm.collectionVariables.set('service_id', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "List All Services",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/services",
+              "host": ["{{base_url}}"],
+              "path": ["api", "services"]
+            }
+          }
+        },
+        {
+          "name": "Get Service by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/services/{{service_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "services", "{{service_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Service",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Corte Clásico Premium\",\n  \"price\": 20.00,\n  \"duration\": 45\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/services/{{service_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "services", "{{service_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Service",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/services/{{service_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "services", "{{service_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Find Services by Stylist",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/services/stylist/{{stylist_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "services", "stylist", "{{stylist_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Appointments",
+      "item": [
+        {
+          "name": "Check Availability",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stylistId\": \"{{stylist_id}}\",\n  \"startTime\": \"2026-07-16T10:00:00.000Z\",\n  \"duration\": 30\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/appointments/check-availability",
+              "host": ["{{base_url}}"],
+              "path": ["api", "appointments", "check-availability"]
+            }
+          }
+        },
+        {
+          "name": "Get Available Slots",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/appointments/available-slots?stylistId={{stylist_id}}&date=2026-07-16",
+              "host": ["{{base_url}}"],
+              "path": ["api", "appointments", "available-slots"],
+              "query": [
+                { "key": "stylistId", "value": "{{stylist_id}}" },
+                { "key": "date", "value": "2026-07-16" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Appointment",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientName\": \"Juan Pérez\",\n  \"clientPhone\": \"0998887777\",\n  \"clientEmail\": \"juan@example.com\",\n  \"stylistId\": \"{{stylist_id}}\",\n  \"serviceId\": \"{{service_id}}\",\n  \"startTime\": \"2026-07-16T10:00:00.000Z\",\n  \"duration\": 30,\n  \"notes\": \"Corte clásico\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/appointments",
+              "host": ["{{base_url}}"],
+              "path": ["api", "appointments"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "  pm.collectionVariables.set('appointment_id', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "List All Appointments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/appointments",
+              "host": ["{{base_url}}"],
+              "path": ["api", "appointments"]
+            }
+          }
+        },
+        {
+          "name": "Get Appointment by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/appointments/{{appointment_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "appointments", "{{appointment_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Status (COMPLETED)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{appointment_id}}\",\n  \"status\": \"COMPLETED\",\n  \"notes\": \"Servicio completado exitosamente\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/appointments/{{appointment_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "appointments", "{{appointment_id}}", "status"]
+            }
+          }
+        },
+        {
+          "name": "Reschedule Appointment",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{appointment_id}}\",\n  \"newStartTime\": \"2026-07-16T15:00:00.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/appointments/{{appointment_id}}/reschedule",
+              "host": ["{{base_url}}"],
+              "path": ["api", "appointments", "{{appointment_id}}", "reschedule"]
+            }
+          }
+        },
+        {
+          "name": "Cancel Appointment",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{appointment_id}}\",\n  \"reason\": \"Cliente canceló por imprevisto\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/appointments/{{appointment_id}}/cancel",
+              "host": ["{{base_url}}"],
+              "path": ["api", "appointments", "{{appointment_id}}", "cancel"]
+            }
+          }
+        },
+        {
+          "name": "Get Appointments by Stylist",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/appointments/by-stylist/{{stylist_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "appointments", "by-stylist", "{{stylist_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Appointments by Client",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/appointments/by-client/juan@example.com",
+              "host": ["{{base_url}}"],
+              "path": ["api", "appointments", "by-client", "juan@example.com"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Invoices",
+      "item": [
+        {
+          "name": "Create Invoice",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"appointmentId\": \"{{appointment_id}}\",\n  \"stylistId\": \"{{stylist_id}}\",\n  \"items\": [\n    {\n      \"description\": \"Corte Clásico\",\n      \"quantity\": 1,\n      \"unitPrice\": 15.00,\n      \"total\": 15.00\n    }\n  ],\n  \"paymentMethod\": \"cash\",\n  \"discount\": 0\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/invoices",
+              "host": ["{{base_url}}"],
+              "path": ["api", "invoices"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "  pm.collectionVariables.set('invoice_id', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Invoice by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/invoices/{{invoice_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "invoices", "{{invoice_id}}"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
