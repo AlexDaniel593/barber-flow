@@ -15,6 +15,9 @@ export class Invoice {
   @Column({ type: 'uuid', unique: true })
   appointmentId: string;
 
+  @Column({ type: 'uuid' })
+  stylistId: string;
+
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
   subtotal: number;
 

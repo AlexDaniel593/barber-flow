@@ -1,7 +1,6 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { InvoicesService } from './invoices.service';
-import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { DailySummaryDto } from './dto/daily-summary.dto';
 import { MonthlyReportDto } from './dto/monthly-report.dto';
 
@@ -10,8 +9,8 @@ export class InvoicesController {
   constructor(private readonly invoicesService: InvoicesService) {}
 
   @MessagePattern({ cmd: 'invoices.create' })
-  async create(@Payload() dto: CreateInvoiceDto) {
-    return await this.invoicesService.create(dto);
+  async create(@Payload() data: any) {
+    return await this.invoicesService.create(data);
   }
 
   @MessagePattern({ cmd: 'invoices.findOne' })

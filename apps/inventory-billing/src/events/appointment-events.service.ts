@@ -37,27 +37,32 @@ export class AppointmentEventsService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     const url = `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || 6379}`;
-    this.subscriber = createClient({ url });
+    this.subscriber = createClient({
+      url,
+      socket: { connectTimeout: 3000, reconnectStrategy: () => false },
+    });
 
     this.subscriber.on('error', (error) =>
       this.logger.error(`Redis subscriber error: ${error.message}`, error.stack),
     );
 
-    await this.subscriber.connect();
-
-    await this.subscriber.subscribe(CHANNELS.COMPLETED, (message) =>
-      this.handleAppointmentCompleted(message),
-    );
-    await this.subscriber.subscribe(CHANNELS.CANCELLED, (message) =>
-      this.handleAppointmentCancelled(message),
-    );
-    await this.subscriber.subscribe(CHANNELS.CREATED, (message) =>
-      this.handleAppointmentCreated(message),
-    );
-
-    this.logger.log(
-      `Subscribed to Redis channels: ${Object.values(CHANNELS).join(', ')}`,
-    );
+    try {
+      await this.subscriber.connect();
+      await this.subscriber.subscribe(CHANNELS.COMPLETED, (message) =>
+        this.handleAppointmentCompleted(message),
+      );
+      await this.subscriber.subscribe(CHANNELS.CANCELLED, (message) =>
+        this.handleAppointmentCancelled(message),
+      );
+      await this.subscriber.subscribe(CHANNELS.CREATED, (message) =>
+        this.handleAppointmentCreated(message),
+      );
+      this.logger.log(
+        `Subscribed to Redis channels: ${Object.values(CHANNELS).join(', ')}`,
+      );
+    } catch (error) {
+      this.logger.warn(`Redis no disponible, eventos de appointments desactivados: ${error.message}`);
+    }
   }
 
   async onModuleDestroy() {
@@ -106,6 +111,7 @@ export class AppointmentEventsService implements OnModuleInit, OnModuleDestroy {
 
       await this.invoicesService.create({
         appointmentId: event.appointmentId,
+        stylistId: event.stylistId,
         items: invoiceItems,
         paymentMethod: DEFAULT_PAYMENT_METHOD,
       });
