@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { MicroservicesClientModule } from '../shared/microservices-client.module';
 import { InvoicesController } from './invoices.controller';
+import { InvoicesService } from './invoices.service';
 
 @Module({
-  imports: [MicroservicesClientModule],
   controllers: [InvoicesController],
+  providers: [InvoicesService],
 })
 export class InvoicesModule {}

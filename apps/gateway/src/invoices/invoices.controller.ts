@@ -1,38 +1,20 @@
-import {
-  Controller, Get, Post, Param, Body, Inject,
-  BadRequestException, InternalServerErrorException,
-} from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
-import { firstValueFrom, catchError, throwError } from 'rxjs';
+import { Controller, Get, Post, Param, Body, UseGuards } from '@nestjs/common';
+import { InvoicesService } from './invoices.service';
+import { CreateInvoiceDto } from './dto/create-invoice.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
+@UseGuards(JwtAuthGuard)
 @Controller('invoices')
 export class InvoicesController {
-  constructor(
-    @Inject('INVENTORY_BILLING_CLIENT')
-    private readonly client: ClientProxy,
-  ) {}
+  constructor(private readonly invoicesService: InvoicesService) {}
 
   @Post()
-  async create(@Body() dto: any) {
-    return firstValueFrom(
-      this.client.send({ cmd: 'invoices.create' }, dto).pipe(
-        catchError((err) => {
-          const message = err?.message || 'Error creating invoice';
-          return throwError(() => new BadRequestException(message));
-        }),
-      ),
-    );
+  create(@Body() dto: CreateInvoiceDto) {
+    return this.invoicesService.create(dto);
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return firstValueFrom(
-      this.client.send({ cmd: 'invoices.findOne' }, { id }).pipe(
-        catchError((err) => {
-          const message = err?.message || `Invoice with ID ${id} not found`;
-          return throwError(() => new BadRequestException(message));
-        }),
-      ),
-    );
+  findOne(@Param('id') id: string) {
+    return this.invoicesService.findOne(id);
   }
 }
