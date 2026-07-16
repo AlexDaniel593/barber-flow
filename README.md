@@ -208,20 +208,27 @@ graph LR
 
 
 ---
-
 ## 🟢 Avance 1 — Acoplamiento temporal y latencia · `tag v1-avance1`
 
 ### Caminos
+
 - **Síncrono (TCP):** `MS1-Appointments` → `MS2-Services-Staff` (validación de estilista y servicio al crear cita).
 - **Asíncrono (Redis):** `MS1-Appointments` publica evento `appointment.completed` → `MS3-Inventory-Billing` genera factura sin bloquear al emisor.
 
-### 📈 Latencia (con `benchmark.js`)
+### 📈 Latencia (con `benchmark-latency.js`)
+
 | Camino | Promedio (ms) | p95 (ms) | Máx (ms) |
 |---|---|---|---|
-| Síncrono | << >> | << >> | << >> |
-| Asíncrono | << >> | << >> | << >> |
+| Síncrono (Gateway → MS2) | 11.68 | 16.00 | 31.00 |
+| Asíncrono (Gateway → MS1) | 14.71 | 25.00 | 51.00 |
+
+## Evidencia de benchmark de latencia
+
+![Resultado del benchmark de latencia](docs/evidencias/benchmark-latencia1.png)
+![Resultado del benchmark de latencia](docs/evidencias/benchmark-latencia2.png)
 
 ### 🔌 Acoplamiento temporal — Prueba de caída
+
 **Escenario:** Se apagó el microservicio MS3 (`docker stop ms-inventory-billing`) y se intentó completar una cita.
 **Resultado:** MS1 completó la cita exitosamente y publicó el evento en Redis sin ningún error, demostrando que **no existe acoplamiento temporal** en el camino asíncrono.
 
@@ -257,7 +264,9 @@ ms-inventory-billing   3:39:59 AM  Processed appointment.completed for appointme
 **Análisis:** MS1 usa el cliente `redis` para publicar en el canal (`this.publisher.publish(channel, message)`), una operación que solo espera la confirmación de Redis de que el mensaje entró al canal — no espera a que exista o termine ningún consumidor. Por eso Postman recibe la respuesta casi de inmediato (94 ms) aun cuando MS3 tarda más en descontar stock y armar la factura. El log de `inventory-billing` aparece un segundo después del de `appointments`, con el mismo `appointmentId`, lo que confirma que ambos servicios procesaron el mismo evento de forma independiente y sin bloquearse entre sí.
 
 ### 🧠 Análisis
-✍️ <<Por qué se suman las latencias y qué es el acoplamiento temporal según lo observado.>>
+- **Acumulación de latencia:** En el camino síncrono, los tiempos de respuesta se acumulan debido a que cada salto en la cadena (Gateway → MS1 → MS2) requiere realizar una petición y esperar su respuesta de forma secuencial. La latencia total experimentada por el cliente es la suma directa del procesamiento y el tránsito de red de todos los servicios involucrados.
+- **Acoplamiento temporal:** En una cadena síncrona, todos los servicios deben estar levantados y disponibles al mismo tiempo. Si uno de ellos falla (acoplamiento temporal fuerte), toda la operación falla. Con el camino asíncrono mediado por Redis (PUB/SUB), el servicio emisor (MS1) publica el evento de confirmación de cita inmediatamente en Redis sin bloquearse ni esperar al receptor (MS3). Esto permite que el cliente reciba una respuesta rápida e independiente del estado de MS3. Si MS3 está apagado, la cita se registra y completa exitosamente de todas formas, y cuando MS3 vuelve a estar en línea, procesa el evento pendiente para generar la factura de manera diferida.
+
 
 ---
 
