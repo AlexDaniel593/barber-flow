@@ -108,20 +108,21 @@ services:
     networks:
       - barber-flow-network
 
-  # ---- API Gateway (planificado) ----
-  api-gateway:
-    build: ./apps/api-gateway
+  # ---- API Gateway ----
+  gateway:
+    build: ./apps/gateway
     container_name: api-gateway
-    profiles: ["full"]
     environment:
       PORT: 3000
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
-      APPOINTMENTS_HOST: appointments
-      APPOINTMENTS_PORT: 3001
+      SERVICES_STAFF_HOST: services-staff
+      SERVICES_STAFF_PORT: 3002
+      SVC_PEDIDOS_HOST: svc-pedidos
+      SVC_PEDIDOS_PORT: 3001
     ports:
       - "3000:3000"
     depends_on:
-      - appointments
+      - services-staff
     restart: unless-stopped
     networks:
       - barber-flow-network
