@@ -1,37 +1,26 @@
-import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Request } from '@nestjs/common';
+import { AuthService } from './auth.service';
+import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
+import { JwtAuthGuard } from './jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
-  @Post('login')
-  login(@Body() dto: any) {
-    return {
-      access_token: 'mock-jwt-token',
-      user: {
-        id: 'mock-id',
-        email: dto.email || 'user@example.com',
-        name: 'Mock User',
-        role: 'client',
-      },
-    };
-  }
+  constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  register(@Body() dto: any) {
-    return {
-      id: 'mock-id-' + Date.now(),
-      email: dto.email || 'user@example.com',
-      name: dto.name || 'Mock User',
-      role: 'client',
-    };
+  register(@Body() dto: RegisterDto) {
+    return this.authService.register(dto);
   }
 
+  @Post('login')
+  login(@Body() dto: LoginDto) {
+    return this.authService.login(dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get('profile')
-  getProfile() {
-    return {
-      id: 'mock-id',
-      email: 'user@example.com',
-      name: 'Mock User',
-      role: 'client',
-    };
+  getProfile(@Request() req: any) {
+    return this.authService.getProfile(req.user.id);
   }
 }

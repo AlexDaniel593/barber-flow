@@ -15,7 +15,7 @@ import { Stylist } from './stylists/entities/stylist.entity';
       password: process.env.DB_PASSWORD || 'postgres',
       database: process.env.DB_DATABASE || 'barber_flow',
       entities: [Service, Stylist],
-      synchronize: process.env.NODE_ENV !== 'production',
+      synchronize: true,
     }),
     ServicesModule,
     StylistsModule,
