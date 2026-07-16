@@ -12,3 +12,8 @@ TAREA_1.md
 .env
 .env.local
 .env.*.local
+
+# dependencias
+node_modules/
+# archivos compilados
+dist/
