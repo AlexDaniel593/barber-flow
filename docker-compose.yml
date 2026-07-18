@@ -93,7 +93,9 @@ services:
 
   # ---- MS3: Inventory & Billing (construido) ----
   inventory-billing:
-    build: ./apps/inventory-billing
+    build:
+      context: .
+      dockerfile: apps/inventory-billing/Dockerfile
     container_name: ms-inventory-billing
     environment:
       DB_HOST: postgres
@@ -127,15 +129,28 @@ services:
     environment:
       PORT: 3000
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DB_DATABASE: ${POSTGRES_DB:-barber_flow}
       SERVICES_STAFF_HOST: services-staff
       SERVICES_STAFF_PORT: 3002
+      SVC_PEDIDOS_HOST: appointments
+      SVC_PEDIDOS_PORT: 3001
       SVC_APPOINTMENTS_HOST: appointments
       SVC_APPOINTMENTS_PORT: 3001
+      SERVICES_INVENTORY_BILLING_HOST: inventory-billing
+      SERVICES_INVENTORY_BILLING_PORT: 3003
     ports:
       - "3000:3000"
     depends_on:
-      - services-staff
-      - appointments
+      postgres:
+        condition: service_healthy
+      services-staff:
+        condition: service_started
+      appointments:
+        condition: service_started
     restart: unless-stopped
     networks:
       - barber-flow-network
