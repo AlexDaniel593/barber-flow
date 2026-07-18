@@ -10,11 +10,13 @@ import { Service } from './entities/service.entity';
 import { InventoryConsumption } from './entities/inventory-consumption.entity';
 import { Invoice } from './entities/invoice.entity';
 import { AppointmentEventsModule } from '../events/appointment-events/appointment-events.module';
+import { RabbitmqPublisherModule } from '../events/rabbitmq-publisher/rabbitmq-publisher.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Appointment, Stylist, Service, InventoryConsumption, Invoice]),
     AppointmentEventsModule,
+    RabbitmqPublisherModule,
     ClientsModule.register([
       {
         name: 'STYLIST_GRPC_PACKAGE',

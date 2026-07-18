@@ -13,6 +13,7 @@ import { CheckAvailabilityDto } from './dto/check-availability.dto';
 import { RescheduleDto } from './dto/reschedule.dto';
 import { CancelAppointmentDto } from './dto/cancel-appointment.dto';
 import { AppointmentEventsService } from '../events/appointment-events/appointment-events.service';
+import { RabbitmqPublisherService } from '../events/rabbitmq-publisher/rabbitmq-publisher.service';
 
 export interface StylistGrpcResponse {
   id: string;
@@ -38,6 +39,7 @@ export class AppointmentsService implements OnModuleInit {
     @InjectRepository(Service)
     private readonly serviceRepository: Repository<Service>,
     private readonly eventsService: AppointmentEventsService,
+    private readonly rabbitmqPublisher: RabbitmqPublisherService,
     @Inject('STYLIST_GRPC_PACKAGE')
     private readonly grpcClient: ClientGrpc,
   ) {}
@@ -112,8 +114,17 @@ export class AppointmentsService implements OnModuleInit {
 
       const saved = await this.appointmentRepository.save(appointment);
 
-      // Publish event
+      // Publish event (Redis: notificación general del avance 1)
       await this.eventsService.publish('appointment.created', {
+        appointmentId: saved.id,
+        serviceId: saved.serviceId,
+        stylistId: saved.stylistId,
+        duration: saved.duration,
+        startTime: saved.startTime.toISOString(),
+      });
+
+      // Publish event (RabbitMQ: reserva de inventario, segundo transporte del avance 2)
+      await this.rabbitmqPublisher.publish('appointment.created', {
         appointmentId: saved.id,
         serviceId: saved.serviceId,
         stylistId: saved.stylistId,
