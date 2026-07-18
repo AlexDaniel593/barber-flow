@@ -1,11 +1,13 @@
 import { Controller, Get, Post, Body } from '@nestjs/common';
+import { JWT_SECRET } from '../constants';
 
 @Controller('auth')
 export class AuthController {
   @Post('login')
   login(@Body() dto: any) {
+    const mockToken = Buffer.from(`mock-session:${JWT_SECRET}`).toString('base64');
     return {
-      access_token: 'mock-jwt-token',
+      access_token: mockToken,
       user: {
         id: 'mock-id',
         email: dto.email || 'user@example.com',

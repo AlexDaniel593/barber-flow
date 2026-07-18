@@ -42,9 +42,7 @@ services:
   # ---- MS2: Services & Staff (construido) ----
 
   services-staff:
-    build:
-      context: .
-      dockerfile: apps/services-staff/Dockerfile
+    build: ./apps/services-staff
     container_name: ms-services-staff
     environment:
       DB_HOST: postgres
@@ -59,15 +57,12 @@ services:
     restart: unless-stopped
     ports:
       - "3002:3002"
-      - "50051:50051"
     networks:
       - barber-flow-network
 
   # ---- MS1: Appointments (construido) ----
   appointments:
-    build:
-      context: .
-      dockerfile: apps/appointments/Dockerfile
+    build: ./apps/appointments
     container_name: ms-appointments
     environment:
       DB_HOST: postgres
@@ -79,7 +74,6 @@ services:
       REDIS_PORT: 6379
       SVC_SERVICES_STAFF_HOST: services-staff
       SVC_SERVICES_STAFF_PORT: 3002
-      SVC_STYLIST_GRPC_HOST: services-staff:50051
     depends_on:
       postgres:
         condition: service_healthy
@@ -93,9 +87,7 @@ services:
 
   # ---- MS3: Inventory & Billing (construido) ----
   inventory-billing:
-    build:
-      context: .
-      dockerfile: apps/inventory-billing/Dockerfile
+    build: ./apps/inventory-billing
     container_name: ms-inventory-billing
     environment:
       DB_HOST: postgres
@@ -122,9 +114,7 @@ services:
 
   # ---- API Gateway ----
   gateway:
-    build:
-      context: .
-      dockerfile: apps/gateway/Dockerfile
+    build: ./apps/gateway
     container_name: api-gateway
     environment:
       PORT: 3000
@@ -138,8 +128,6 @@ services:
       SERVICES_STAFF_PORT: 3002
       SVC_PEDIDOS_HOST: appointments
       SVC_PEDIDOS_PORT: 3001
-      SVC_APPOINTMENTS_HOST: appointments
-      SVC_APPOINTMENTS_PORT: 3001
       SERVICES_INVENTORY_BILLING_HOST: inventory-billing
       SERVICES_INVENTORY_BILLING_PORT: 3003
     ports:
