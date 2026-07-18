@@ -1,6 +1,8 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, OnModuleInit, Inject } from '@nestjs/common';
+import { ClientGrpc } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, In, Not } from 'typeorm';
+import { Observable, lastValueFrom } from 'rxjs';
 import { Appointment, AppointmentStatus } from './entities/appointment.entity';
 import { Stylist } from './entities/stylist.entity';
 import { Service } from './entities/service.entity';
@@ -12,9 +14,21 @@ import { RescheduleDto } from './dto/reschedule.dto';
 import { CancelAppointmentDto } from './dto/cancel-appointment.dto';
 import { AppointmentEventsService } from '../events/appointment-events/appointment-events.service';
 
+export interface StylistGrpcResponse {
+  id: string;
+  name: string;
+  email: string;
+  isActive: boolean;
+}
+
+interface StylistGrpcService {
+  findOneStylist(data: { id: string }): Observable<StylistGrpcResponse>;
+}
+
 @Injectable()
-export class AppointmentsService {
+export class AppointmentsService implements OnModuleInit {
   private readonly logger = new Logger(AppointmentsService.name);
+  private stylistGrpcService: StylistGrpcService;
 
   constructor(
     @InjectRepository(Appointment)
@@ -24,7 +38,40 @@ export class AppointmentsService {
     @InjectRepository(Service)
     private readonly serviceRepository: Repository<Service>,
     private readonly eventsService: AppointmentEventsService,
+    @Inject('STYLIST_GRPC_PACKAGE')
+    private readonly grpcClient: ClientGrpc,
   ) {}
+
+  onModuleInit() {
+    this.stylistGrpcService = this.grpcClient.getService<StylistGrpcService>('StylistService');
+    this.logger.log('gRPC client connected to StylistService');
+  }
+
+  // gRPC: Validate stylist exists via gRPC call to services-staff
+  async verifyStylistViaGrpc(stylistId: string): Promise<StylistGrpcResponse> {
+    try {
+      const response = await lastValueFrom(
+        this.stylistGrpcService.findOneStylist({ id: stylistId }),
+      );
+      this.logger.log(`gRPC verify OK: stylist ${response.name} (${response.id}) isActive=${response.isActive}`);
+
+      if (!response.isActive) {
+        throw new BadRequestException('El estilista no está disponible (inactivo)');
+      }
+
+      return response;
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      this.logger.error(`gRPC verify failed for stylist ${stylistId}: ${error.message}`);
+      const grpcError = error as any;
+      if (grpcError.code === 14 || grpcError.message?.includes('UNAVAILABLE') || grpcError.message?.includes('unavailable')) {
+        throw new BadRequestException('El servicio de estilistas no está disponible en este momento');
+      }
+      throw new NotFoundException(`Estilista con ID ${stylistId} no encontrado`);
+    }
+  }
 
   // 1. Create Appointment
   async create(dto: CreateAppointmentDto): Promise<Appointment> {
@@ -32,11 +79,8 @@ export class AppointmentsService {
       const startTime = new Date(dto.startTime);
       const endTime = new Date(startTime.getTime() + dto.duration * 60000);
 
-      // Check stylist exists
-      const stylistExists = await this.stylistRepository.findOne({ where: { id: dto.stylistId } });
-      if (!stylistExists) {
-        throw new NotFoundException(`Stylist with ID ${dto.stylistId} not found`);
-      }
+      // Check stylist exists via gRPC
+      await this.verifyStylistViaGrpc(dto.stylistId);
 
       // Check service exists
       const serviceExists = await this.serviceRepository.findOne({ where: { id: dto.serviceId } });

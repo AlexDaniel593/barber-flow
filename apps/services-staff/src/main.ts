@@ -1,19 +1,28 @@
 import { NestFactory } from '@nestjs/core';
 import { Transport, MicroserviceOptions } from '@nestjs/microservices';
 import { ValidationPipe } from '@nestjs/common';
+import { join } from 'path';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.createMicroservice<MicroserviceOptions>(
-    AppModule,
-    {
-      transport: Transport.TCP,
-      options: {
-        host: '0.0.0.0',
-        port: 3002,
-      },
+  const app = await NestFactory.create(AppModule);
+
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.TCP,
+    options: {
+      host: '0.0.0.0',
+      port: 3002,
     },
-  );
+  });
+
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.GRPC,
+    options: {
+      package: 'barber',
+      protoPath: join(__dirname, '../../../proto/barber.proto'),
+      url: '0.0.0.0:50051',
+    },
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -23,7 +32,7 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen();
-  console.log('Microservicio ms-services-staff corriendo en TCP:3002');
+  await app.startAllMicroservices();
+  console.log('Microservicio ms-services-staff corriendo en TCP:3002 y gRPC:50051');
 }
 bootstrap();

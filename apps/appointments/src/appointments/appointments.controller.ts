@@ -1,6 +1,6 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { AppointmentsService } from './appointments.service';
+import { AppointmentsService, StylistGrpcResponse } from './appointments.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { FindAppointmentsDto } from './dto/find-appointments.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
@@ -60,5 +60,10 @@ export class AppointmentsController {
   @MessagePattern({ cmd: 'appointments.getAvailableSlots' })
   async getAvailableSlots(@Payload() data: { stylistId: string; date: string; serviceId?: string }) {
     return await this.appointmentsService.getAvailableSlots(data.stylistId, data.date, data.serviceId);
+  }
+
+  @MessagePattern({ cmd: 'appointments.verifyStylistGrpc' })
+  async verifyStylistGrpc(@Payload() data: { id: string }) {
+    return await this.appointmentsService.verifyStylistViaGrpc(data.id);
   }
 }
