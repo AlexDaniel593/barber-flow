@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { MicroservicesClientModule } from '../shared/microservices-client.module';
 import { StylistsController } from './stylists.controller';
+import { StylistsService } from './stylists.service';
 
 @Module({
-  imports: [MicroservicesClientModule],
   controllers: [StylistsController],
+  providers: [StylistsService],
 })
 export class StylistsModule {}

@@ -19,7 +19,7 @@ import { InvoiceItem } from './invoices/entities/invoice-item.entity';
       password: process.env.DB_PASSWORD || 'postgres',
       database: process.env.DB_DATABASE || 'barber_flow',
       entities: [InventoryItem, InventoryConsumption, Invoice, InvoiceItem],
-      synchronize: process.env.NODE_ENV !== 'production',
+      synchronize: true,
     }),
     MicroservicesClientModule,
     InventoryModule,
