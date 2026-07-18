@@ -42,7 +42,9 @@ services:
   # ---- MS2: Services & Staff (construido) ----
 
   services-staff:
-    build: ./apps/services-staff
+    build:
+      context: .
+      dockerfile: apps/services-staff/Dockerfile
     container_name: ms-services-staff
     environment:
       DB_HOST: postgres
@@ -62,7 +64,9 @@ services:
 
   # ---- MS1: Appointments (construido) ----
   appointments:
-    build: ./apps/appointments
+    build:
+      context: .
+      dockerfile: apps/appointments/Dockerfile
     container_name: ms-appointments
     environment:
       DB_HOST: postgres
@@ -74,6 +78,7 @@ services:
       REDIS_PORT: 6379
       SVC_SERVICES_STAFF_HOST: services-staff
       SVC_SERVICES_STAFF_PORT: 3002
+      SVC_STYLIST_GRPC_HOST: services-staff:50051
     depends_on:
       postgres:
         condition: service_healthy
@@ -114,7 +119,9 @@ services:
 
   # ---- API Gateway ----
   gateway:
-    build: ./apps/gateway
+    build:
+      context: .
+      dockerfile: apps/gateway/Dockerfile
     container_name: api-gateway
     environment:
       PORT: 3000
