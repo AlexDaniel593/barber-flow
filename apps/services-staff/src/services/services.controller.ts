@@ -1,5 +1,7 @@
 import { Controller } from '@nestjs/common';
+import { GrpcMethod, RpcException } from '@nestjs/microservices';
 import { MessagePattern, Payload } from '@nestjs/microservices';
+import { status } from '@grpc/grpc-js';
 import { ServicesService } from './services.service';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
@@ -7,6 +9,27 @@ import { UpdateServiceDto } from './dto/update-service.dto';
 @Controller()
 export class ServicesController {
   constructor(private readonly servicesService: ServicesService) {}
+
+  @GrpcMethod('ServiceService', 'FindOneService')
+  async findOneService(data: { id: string }) {
+    try {
+      const service = await this.servicesService.findOne(data.id);
+      return {
+        id: service.id,
+        name: service.name,
+        description: service.description || '',
+        price: Number(service.price),
+        duration: service.duration,
+        category: service.category,
+        isActive: service.isActive,
+      };
+    } catch (error) {
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: `Service with ID ${data.id} not found`,
+      });
+    }
+  }
 
   @MessagePattern({ cmd: 'services.create' })
   async create(@Payload() createServiceDto: CreateServiceDto) {

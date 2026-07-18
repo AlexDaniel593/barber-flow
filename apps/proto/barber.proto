@@ -6,6 +6,10 @@ service StylistService {
   rpc FindOneStylist (StylistRequest) returns (StylistResponse);
 }
 
+service ServiceService {
+  rpc FindOneService (ServiceRequest) returns (ServiceResponse);
+}
+
 message StylistRequest {
   string id = 1;
 }
@@ -15,4 +19,18 @@ message StylistResponse {
   string name = 2;
   string email = 3;
   bool isActive = 4;
+}
+
+message ServiceRequest {
+  string id = 1;
+}
+
+message ServiceResponse {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  double price = 4;
+  int32 duration = 5;
+  string category = 6;
+  bool isActive = 7;
 }
