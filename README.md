@@ -110,7 +110,7 @@ curl http://localhost:3000/api/<<recurso>>
 
 ### Visión General del Sistema
 
-El sistema está compuesto por **3 microservicios** + **1 API Gateway**, comunicándose mediante **TCP** (síncrono) y **Redis** (asíncrono). Cada microservicio tiene una responsabilidad única y utiliza **PostgreSQL** como base de datos.
+El sistema está compuesto por **3 microservicios** + **1 API Gateway**, comunicándose mediante **TCP** (síncrono), **Redis** (asíncrono), **gRPC** (contrato) y **RabbitMQ** (PUB/SUB). Cada microservicio tiene una responsabilidad única y utiliza **PostgreSQL** como base de datos.
 
 ```mermaid
 graph TB
@@ -124,14 +124,15 @@ graph TB
     end
 
     subgraph "📦 Microservicios"
-        MS1[📅 MS-Appointments<br/>Puerto 3001<br/>TCP + Redis PUB]
-        MS2[📋 MS-Services-Staff<br/>Puerto 3002<br/>TCP]
+        MS1[📅 MS-Appointments<br/>Puerto 3001<br/>TCP + gRPC Client + Redis PUB]
+        MS2[📋 MS-Services-Staff<br/>Puerto 3002 · gRPC 50051<br/>TCP + gRPC Server]
         MS3[📦 MS-Inventory-Billing<br/>Puerto 3003<br/>TCP + Redis SUB]
     end
 
     subgraph "🗄️ Infraestructura"
         DB[(PostgreSQL)]
         R[📡 Redis<br/>PUB/SUB]
+        MQ[🐇 RabbitMQ<br/>PUB/SUB]
     end
 
     C -->|HTTP| G
@@ -142,8 +143,12 @@ graph TB
     G -->|TCP| MS3
     
     MS1 -->|TCP Consulta| MS2
+    MS1 -->|🔄 gRPC FindOneStylist<br/>🔄 gRPC FindOneService| MS2
     MS1 -->|PUBLISH Eventos| R
     R -->|SUBSCRIBE| MS3
+    
+    MS1 -->|PUBLISH a RabbitMQ| MQ
+    MQ -->|CONSUME| MS3
     
     MS1 --> DB
     MS2 --> DB
