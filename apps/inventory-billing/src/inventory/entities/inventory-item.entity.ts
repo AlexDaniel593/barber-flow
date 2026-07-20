@@ -25,6 +25,9 @@ export class InventoryItem {
   @Column('int')
   quantity: number;
 
+  @Column('int', { default: 0 })
+  reserved: number;
+
   @Column('int', { default: 5 })
   minStock: number;
 

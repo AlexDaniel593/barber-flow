@@ -193,6 +193,35 @@ export class InventoryService {
     }
   }
 
+  async reserveForService(
+    serviceId: string,
+    appointmentId: string,
+    quantityPerItem = 1,
+  ): Promise<{ reserved: number; items: string[] }> {
+    try {
+      const items = await this.findByService(serviceId);
+      const reservedItems: string[] = [];
+
+      for (const item of items) {
+        item.reserved += quantityPerItem;
+        await this.inventoryRepository.save(item);
+        reservedItems.push(item.id);
+      }
+
+      this.logger.log(
+        `Reserved stock for appointment ${appointmentId} (service ${serviceId}): ${reservedItems.length} item(s)`,
+      );
+
+      return { reserved: reservedItems.length, items: reservedItems };
+    } catch (error) {
+      this.logger.error(
+        `Error reserving stock for service ${serviceId} (appointment ${appointmentId}): ${error.message}`,
+        error.stack,
+      );
+      throw new BadRequestException(`Failed to reserve stock: ${error.message}`);
+    }
+  }
+
   async findByService(serviceId: string): Promise<InventoryItem[]> {
     try {
       return await this.inventoryRepository.find({

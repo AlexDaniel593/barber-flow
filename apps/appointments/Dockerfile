@@ -18,7 +18,7 @@ COPY apps/appointments/package*.json ./
 RUN npm ci --omit=dev
 
 COPY --from=builder /app/apps/appointments/dist ./dist
-COPY --from=builder /app/apps/proto ./proto
+COPY --from=builder /app/apps/proto /proto
 
 EXPOSE 3001
 

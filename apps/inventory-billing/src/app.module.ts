@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { InventoryModule } from './inventory/inventory.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { AppointmentEventsModule } from './events/appointment-events.module';
+import { RabbitmqConsumerModule } from './events/rabbitmq-consumer/rabbitmq-consumer.module';
 import { MicroservicesClientModule } from './shared/microservices-client.module';
 import { InventoryItem } from './inventory/entities/inventory-item.entity';
 import { InventoryConsumption } from './inventory/entities/inventory-consumption.entity';
@@ -25,6 +26,7 @@ import { InvoiceItem } from './invoices/entities/invoice-item.entity';
     InventoryModule,
     InvoicesModule,
     AppointmentEventsModule,
+    RabbitmqConsumerModule,
   ],
 })
 export class AppModule {}

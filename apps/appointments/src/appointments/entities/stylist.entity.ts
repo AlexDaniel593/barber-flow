@@ -21,6 +21,9 @@ export class Stylist {
   @Column({ type: 'jsonb', nullable: true })
   workingHours: Record<string, any>;
 
+  @Column({ type: 'boolean', default: true })
+  isActive: boolean;
+
   @OneToMany(() => Appointment, (appointment) => appointment.stylist)
   appointments: Appointment[];
 }

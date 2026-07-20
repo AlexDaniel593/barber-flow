@@ -39,6 +39,21 @@ services:
     networks:
       - barber-flow-network
 
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: barber-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - barber-flow-network
+
   # ---- MS2: Services & Staff (construido) ----
 
   services-staff:
@@ -72,13 +87,17 @@ services:
       DB_DATABASE: ${POSTGRES_DB:-barber_flow}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
       SVC_SERVICES_STAFF_HOST: services-staff
       SVC_SERVICES_STAFF_PORT: 3002
+      SVC_STYLIST_GRPC_HOST: services-staff:50051
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_started
+      rabbitmq:
+        condition: service_healthy
     restart: unless-stopped
     ports:
       - "3001:3001"
@@ -97,6 +116,7 @@ services:
       DB_DATABASE: ${POSTGRES_DB:-barber_flow}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
       SERVICES_STAFF_HOST: services-staff
       SERVICES_STAFF_PORT: 3002
     depends_on:
@@ -104,6 +124,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      rabbitmq:
+        condition: service_healthy
       services-staff:
         condition: service_started
     restart: unless-stopped
