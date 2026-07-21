@@ -4,8 +4,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, In, Not } from 'typeorm';
 import { Observable, lastValueFrom } from 'rxjs';
 import { Appointment, AppointmentStatus } from './entities/appointment.entity';
-import { Stylist } from './entities/stylist.entity';
-import { Service } from './entities/service.entity';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { FindAppointmentsDto } from './dto/find-appointments.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
@@ -20,6 +18,7 @@ export interface StylistGrpcResponse {
   name: string;
   email: string;
   isActive: boolean;
+  workingHours: string;
 }
 
 interface StylistGrpcService {
@@ -49,10 +48,6 @@ export class AppointmentsService implements OnModuleInit {
   constructor(
     @InjectRepository(Appointment)
     private readonly appointmentRepository: Repository<Appointment>,
-    @InjectRepository(Stylist)
-    private readonly stylistRepository: Repository<Stylist>,
-    @InjectRepository(Service)
-    private readonly serviceRepository: Repository<Service>,
     private readonly eventsService: AppointmentEventsService,
     private readonly rabbitmqPublisher: RabbitmqPublisherService,
     @Inject('STYLIST_GRPC_PACKAGE')
@@ -207,12 +202,7 @@ export class AppointmentsService implements OnModuleInit {
   // 2. Find All with Filters
   async findAll(filters: FindAppointmentsDto): Promise<Appointment[]> {
     try {
-      const query = this.appointmentRepository
-        .createQueryBuilder('appointment')
-        .leftJoinAndSelect('appointment.stylist', 'stylist')
-        .leftJoinAndSelect('appointment.service', 'service')
-        .leftJoinAndSelect('appointment.inventoryConsumption', 'inventoryConsumption')
-        .leftJoinAndSelect('appointment.invoice', 'invoice');
+      const query = this.appointmentRepository.createQueryBuilder('appointment');
 
       if (filters.status) {
         query.andWhere('appointment.status = :status', { status: filters.status });
@@ -246,7 +236,6 @@ export class AppointmentsService implements OnModuleInit {
     try {
       const appointment = await this.appointmentRepository.findOne({
         where: { id },
-        relations: ['stylist', 'service', 'inventoryConsumption', 'invoice'],
       });
 
       if (!appointment) {
@@ -281,13 +270,19 @@ export class AppointmentsService implements OnModuleInit {
       // Disparar eventos Redis si cambia
       if (oldStatus !== dto.status) {
         if (dto.status === AppointmentStatus.COMPLETED) {
+          let servicePrice = Number(updated.totalPrice) || 0;
+          if (!servicePrice) {
+            const service = await this.verifyServiceViaGrpc(updated.serviceId);
+            servicePrice = service.price;
+          }
+
           await this.eventsService.publish('appointment.completed', {
             appointmentId: updated.id,
             serviceId: updated.serviceId,
             stylistId: updated.stylistId,
             duration: updated.duration,
             startTime: updated.startTime.toISOString(),
-            servicePrice: updated.totalPrice || (updated.service ? Number(updated.service.price) : 0),
+            servicePrice,
           });
         } else if (dto.status === AppointmentStatus.CANCELLED) {
           await this.eventsService.publish('appointment.cancelled', {
@@ -424,7 +419,6 @@ export class AppointmentsService implements OnModuleInit {
     try {
       return await this.appointmentRepository.find({
         where: { clientEmail },
-        relations: ['service'],
         order: { startTime: 'DESC' },
       });
     } catch (error) {
@@ -436,21 +430,21 @@ export class AppointmentsService implements OnModuleInit {
   // 10. Huecos libres de un estilista
   async getAvailableSlots(stylistId: string, dateStr: string, serviceId?: string): Promise<{ startTime: Date; endTime: Date }[]> {
     try {
-      const stylist = await this.stylistRepository.findOne({ where: { id: stylistId } });
-      if (!stylist) {
-        throw new NotFoundException(`Stylist with ID ${stylistId} not found`);
-      }
+      const stylist = await this.verifyStylistViaGrpc(stylistId);
 
       let duration = 30; // default
       if (serviceId) {
-        const service = await this.serviceRepository.findOne({ where: { id: serviceId } });
+        const service = await this.verifyServiceViaGrpc(serviceId);
         if (service) {
           duration = service.duration;
         }
       }
 
       // Day working hours parsing
-      const workingHours = stylist.workingHours || {
+      const parsedWorkingHours = stylist.workingHours ? JSON.parse(stylist.workingHours) : null;
+      const workingHours = parsedWorkingHours && Object.keys(parsedWorkingHours).length > 0
+        ? parsedWorkingHours
+        : {
         monday: '09:00-18:00',
         tuesday: '09:00-18:00',
         wednesday: '09:00-18:00',

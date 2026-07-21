@@ -1,18 +1,10 @@
-import { 
-  Entity, 
-  PrimaryGeneratedColumn, 
-  Column, 
-  CreateDateColumn, 
-  UpdateDateColumn, 
-  ManyToOne, 
-  OneToMany, 
-  OneToOne, 
-  JoinColumn 
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
 } from 'typeorm';
-import { Stylist } from './stylist.entity';
-import { Service } from './service.entity';
-import { InventoryConsumption } from './inventory-consumption.entity';
-import { Invoice } from './invoice.entity';
 
 export enum AppointmentStatus {
   PENDING = 'PENDING',
@@ -40,16 +32,8 @@ export class Appointment {
   @Column({ type: 'uuid' })
   stylistId: string;
 
-  @ManyToOne(() => Stylist, (stylist) => stylist.appointments, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'stylistId' })
-  stylist: Stylist;
-
   @Column({ type: 'uuid' })
   serviceId: string;
-
-  @ManyToOne(() => Service, (service) => service.appointments, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'serviceId' })
-  service: Service;
 
   @Column({ type: 'timestamp' })
   startTime: Date;
@@ -81,10 +65,4 @@ export class Appointment {
 
   @UpdateDateColumn()
   updatedAt: Date;
-
-  @OneToMany(() => InventoryConsumption, (ic) => ic.appointment)
-  inventoryConsumption: InventoryConsumption[];
-
-  @OneToOne(() => Invoice, (invoice) => invoice.appointment, { nullable: true })
-  invoice?: Invoice;
 }
