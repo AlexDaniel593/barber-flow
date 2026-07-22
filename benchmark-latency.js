@@ -89,7 +89,7 @@ async function medirPatchStatus(appointmentIds, headers, n, etiqueta) {
       const res = await fetch(`${BASE_URL}/api/appointments/${appointmentIds[i]}/status`, {
         method: 'PATCH',
         headers,
-        body: JSON.stringify({ status: 'COMPLETED', notes: 'Benchmark' }),
+        body: JSON.stringify({ id: appointmentIds[i], status: 'COMPLETED', notes: 'Benchmark' }),
       });
       await res.text();
       if (!res.ok) errores++;
@@ -151,7 +151,7 @@ async function setupTestData(headers) {
       email: `stylist.bench.${Date.now()}@test.com`,
       phone: '0999999999',
       specialties: ['Corte'],
-      workingHours: { monday: '09:00-18:00' },
+      workingHours: { monday: '09:00-18:00', tuesday: '09:00-18:00', wednesday: '09:00-18:00', thursday: '09:00-18:00', friday: '09:00-18:00', saturday: '09:00-18:00', sunday: '09:00-18:00' },
     }),
   });
   if (!stylistRes.ok) {
@@ -179,12 +179,13 @@ async function setupTestData(headers) {
   const service = await serviceRes.json();
   console.log(`   ✅ Servicio creado: ${service.id}`);
 
-  // Crear citas
+  // Crear citas (espaciadas 1h para evitar solapamiento con el mismo estilista)
   const appointmentIds = [];
+  const baseDate = new Date();
+  baseDate.setDate(baseDate.getDate() + 1);
+  baseDate.setHours(10, 0, 0, 0);
   for (let i = 0; i < totalNeeded; i++) {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(10 + Math.floor(i / 8), (i % 8) * 15, 0, 0);
+    const aptDate = new Date(baseDate.getTime() + i * 60 * 60000);
 
     const aptRes = await fetch(`${BASE_URL}/api/appointments`, {
       method: 'POST',
@@ -195,7 +196,7 @@ async function setupTestData(headers) {
         clientEmail: `bench.client.${i}@test.com`,
         stylistId: stylist.id,
         serviceId: service.id,
-        startTime: tomorrow.toISOString(),
+        startTime: aptDate.toISOString(),
         duration: 30,
       }),
     });
