@@ -142,13 +142,14 @@ graph TB
     G -->|TCP| MS2
     G -->|TCP| MS3
     
-    MS1 -->|TCP Consulta| MS2
     MS1 -->|🔄 gRPC FindOneStylist<br/>🔄 gRPC FindOneService| MS2
     MS1 -->|PUBLISH Eventos| R
     R -->|SUBSCRIBE| MS3
     
     MS1 -->|PUBLISH a RabbitMQ| MQ
     MQ -->|CONSUME| MS3
+
+    MS3 -->|TCP Consulta| MS2
     
     MS1 --> DB
     MS2 --> DB
