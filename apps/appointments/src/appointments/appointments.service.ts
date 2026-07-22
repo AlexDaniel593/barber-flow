@@ -13,6 +13,7 @@ import { CheckAvailabilityDto } from './dto/check-availability.dto';
 import { RescheduleDto } from './dto/reschedule.dto';
 import { CancelAppointmentDto } from './dto/cancel-appointment.dto';
 import { AppointmentEventsService } from '../events/appointment-events/appointment-events.service';
+import { RabbitmqPublisherService } from '../events/rabbitmq-publisher/rabbitmq-publisher.service';
 
 export interface StylistGrpcResponse {
   id: string;
@@ -25,10 +26,25 @@ interface StylistGrpcService {
   findOneStylist(data: { id: string }): Observable<StylistGrpcResponse>;
 }
 
+export interface ServiceGrpcResponse {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  duration: number;
+  category: string;
+  isActive: boolean;
+}
+
+interface ServiceGrpcService {
+  findOneService(data: { id: string }): Observable<ServiceGrpcResponse>;
+}
+
 @Injectable()
 export class AppointmentsService implements OnModuleInit {
   private readonly logger = new Logger(AppointmentsService.name);
   private stylistGrpcService: StylistGrpcService;
+  private serviceGrpcService: ServiceGrpcService;
 
   constructor(
     @InjectRepository(Appointment)
@@ -38,13 +54,15 @@ export class AppointmentsService implements OnModuleInit {
     @InjectRepository(Service)
     private readonly serviceRepository: Repository<Service>,
     private readonly eventsService: AppointmentEventsService,
+    private readonly rabbitmqPublisher: RabbitmqPublisherService,
     @Inject('STYLIST_GRPC_PACKAGE')
     private readonly grpcClient: ClientGrpc,
   ) {}
 
   onModuleInit() {
     this.stylistGrpcService = this.grpcClient.getService<StylistGrpcService>('StylistService');
-    this.logger.log('gRPC client connected to StylistService');
+    this.serviceGrpcService = this.grpcClient.getService<ServiceGrpcService>('ServiceService');
+    this.logger.log('gRPC client connected to StylistService and ServiceService');
   }
 
   // gRPC: Validate stylist exists via gRPC call to services-staff
@@ -73,6 +91,32 @@ export class AppointmentsService implements OnModuleInit {
     }
   }
 
+  // gRPC: Validate service exists via gRPC call to services-staff
+  async verifyServiceViaGrpc(serviceId: string): Promise<ServiceGrpcResponse> {
+    try {
+      const response = await lastValueFrom(
+        this.serviceGrpcService.findOneService({ id: serviceId }),
+      );
+      this.logger.log(`gRPC verify OK: service ${response.name} (${response.id}) isActive=${response.isActive}`);
+
+      if (!response.isActive) {
+        throw new BadRequestException('El servicio no está disponible (inactivo)');
+      }
+
+      return response;
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      this.logger.error(`gRPC verify failed for service ${serviceId}: ${error.message}`);
+      const grpcError = error as any;
+      if (grpcError.code === 14 || grpcError.message?.includes('UNAVAILABLE') || grpcError.message?.includes('unavailable')) {
+        throw new BadRequestException('El servicio de catálogo de servicios no está disponible en este momento');
+      }
+      throw new NotFoundException(`Servicio con ID ${serviceId} no encontrado`);
+    }
+  }
+
   // 1. Create Appointment
   async create(dto: CreateAppointmentDto): Promise<Appointment> {
     try {
@@ -82,11 +126,8 @@ export class AppointmentsService implements OnModuleInit {
       // Check stylist exists via gRPC
       await this.verifyStylistViaGrpc(dto.stylistId);
 
-      // Check service exists
-      const serviceExists = await this.serviceRepository.findOne({ where: { id: dto.serviceId } });
-      if (!serviceExists) {
-        throw new NotFoundException(`Service with ID ${dto.serviceId} not found`);
-      }
+      // Check service exists via gRPC
+      const serviceExists = await this.verifyServiceViaGrpc(dto.serviceId);
 
       // Check overlapping
       const isAvailable = await this.checkStylistAvailability(dto.stylistId, startTime, endTime);
@@ -112,8 +153,17 @@ export class AppointmentsService implements OnModuleInit {
 
       const saved = await this.appointmentRepository.save(appointment);
 
-      // Publish event
+      // Publish event (Redis: notificación general del avance 1)
       await this.eventsService.publish('appointment.created', {
+        appointmentId: saved.id,
+        serviceId: saved.serviceId,
+        stylistId: saved.stylistId,
+        duration: saved.duration,
+        startTime: saved.startTime.toISOString(),
+      });
+
+      // Publish event (RabbitMQ: reserva de inventario, segundo transporte del avance 2)
+      await this.rabbitmqPublisher.publish('appointment.created', {
         appointmentId: saved.id,
         serviceId: saved.serviceId,
         stylistId: saved.stylistId,

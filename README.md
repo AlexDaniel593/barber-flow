@@ -62,8 +62,8 @@ El objetivo principal es **demostrar el funcionamiento de una arquitectura de mi
 |------|------------|-----------|
 | **Síncrono** | TCP (NestJS Microservices) | Comunicación petición-respuesta entre microservicios |
 | **Eventos Asíncronos** | Redis (PUB/SUB) | Desacoplamiento temporal y manejo de eventos |
-| **gRPC** *(Tarea 2)* | gRPC + Protocol Buffers | Comunicación con contrato definido y alta performance |
-| **Segundo Transporte** *(Tarea 2)* | RabbitMQ / MQTT / NATS | Balanceo de carga y colas de mensajes |
+| **gRPC** | gRPC + Protocol Buffers | Comunicación con contrato definido (`apps/proto/barber.proto`) entre MS1 y MS2 |
+| **Segundo Transporte** | RabbitMQ (PUB/SUB) | Reserva de inventario al crear una cita, desacoplada de MS1 |
 
 ---
 
@@ -110,7 +110,7 @@ curl http://localhost:3000/api/<<recurso>>
 
 ### Visión General del Sistema
 
-El sistema está compuesto por **3 microservicios** + **1 API Gateway**, comunicándose mediante **TCP** (síncrono) y **Redis** (asíncrono). Cada microservicio tiene una responsabilidad única y utiliza **PostgreSQL** como base de datos.
+El sistema está compuesto por **3 microservicios** + **1 API Gateway**, comunicándose mediante **TCP** (síncrono), **Redis** (asíncrono), **gRPC** (contrato) y **RabbitMQ** (PUB/SUB). Cada microservicio tiene una responsabilidad única y utiliza **PostgreSQL** como base de datos.
 
 ```mermaid
 graph TB
@@ -124,14 +124,15 @@ graph TB
     end
 
     subgraph "📦 Microservicios"
-        MS1[📅 MS-Appointments<br/>Puerto 3001<br/>TCP + Redis PUB]
-        MS2[📋 MS-Services-Staff<br/>Puerto 3002<br/>TCP]
-        MS3[📦 MS-Inventory-Billing<br/>Puerto 3003<br/>TCP + Redis SUB]
+        MS1[📅 MS-Appointments<br/>Puerto 3001<br/>TCP + gRPC Client + Redis PUB]
+        MS2[📋 MS-Services-Staff<br/>Puerto 3002 · gRPC 50051<br/>TCP + gRPC Server]
+        MS3[📦 MS-Inventory-Billing<br/>Puerto 3003<br/>TCP + Redis SUB + RabbitMQ SUB]
     end
 
     subgraph "🗄️ Infraestructura"
         DB[(PostgreSQL)]
         R[📡 Redis<br/>PUB/SUB]
+        MQ[🐇 RabbitMQ<br/>PUB/SUB]
     end
 
     C -->|HTTP| G
@@ -142,8 +143,12 @@ graph TB
     G -->|TCP| MS3
     
     MS1 -->|TCP Consulta| MS2
+    MS1 -->|🔄 gRPC FindOneStylist<br/>🔄 gRPC FindOneService| MS2
     MS1 -->|PUBLISH Eventos| R
     R -->|SUBSCRIBE| MS3
+    
+    MS1 -->|PUBLISH a RabbitMQ| MQ
+    MQ -->|CONSUME| MS3
     
     MS1 --> DB
     MS2 --> DB
@@ -200,11 +205,13 @@ graph LR
 | Patrón / Principio | Descripción | Dónde se aplica |
 |---|---|---|
 | **API Gateway** | Punto único de entrada HTTP con JWT y roles |  |
-| **Publisher/Subscriber** | MS1 publica eventos, MS3 los consume sin acoplamiento | Redis PUB/SUB |
+| **Publisher/Subscriber** | MS1 publica eventos, MS3 los consume sin acoplamiento | Redis PUB/SUB (Avance 1) y RabbitMQ PUB/SUB (Avance 2) |
 | **Repository Pattern** | TypeORM repositories encapsulan acceso a datos | Todos los microservicios |
 | **DTO + Pipes (SRP)** | Separación de responsabilidades: validación en DTOs | `appointments/src/dto/, inventory-system/src/dto, services-staff/src/dto` |
 | **Exception Filters** | Manejo consistente de errores en handlers TCP | `try/catch` en servicios |
 | **DIP** | Los servicios dependen de abstracciones (interfaces) de NestJS | `@Injectable()` |
+| **Contrato/RPC (gRPC)** | Comunicación tipada mediante `.proto` compartido en el monorepo | `apps/proto/barber.proto`, MS1 (cliente) y MS2 (servidor) |
+| **Adapter** | Los servicios `RabbitmqPublisherService`/`RabbitmqConsumerService` envuelven la librería `amqplib` detrás de una interfaz simple (`publish`, `handleMessage`) | MS1 y MS3 |
 
 
 ---
@@ -271,24 +278,76 @@ ms-inventory-billing   3:39:59 AM  Processed appointment.completed for appointme
 ---
 
 ## 🟡 Avance 2 — Comunicación: gRPC + 2.º transporte + excepciones · `tag v2-avance2`
-### gRPC (contrato + monorepo)
-✍️ <<Contrato `.proto` y comunicación gRPC entre <<A>> y <<B>>. Control de errores con try/catch.>>
 
-### Segundo transporte
-✍️ <<Transporte elegido (<<RabbitMQ/MQTT/NATS>>) y flujo PUB/SUB o queue implementado.>>
+### gRPC (contrato + monorepo)
+
+Se definió un contrato compartido en `apps/proto/barber.proto`, usado tanto por `MS2-Services-Staff` (servidor) como por `MS1-Appointments` (cliente), dentro del mismo monorepo:
+
+```proto
+syntax = "proto3";
+
+package barber;
+
+service StylistService {
+  rpc FindOneStylist (StylistRequest) returns (StylistResponse);
+}
+
+service ServiceService {
+  rpc FindOneService (ServiceRequest) returns (ServiceResponse);
+}
+
+message StylistRequest {
+  string id = 1;
+}
+
+message StylistResponse {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  bool isActive = 4;
+}
+```
+
+`MS2-Services-Staff` expone el servidor gRPC en el puerto `50051` (además de su TCP en `3002`), implementado con `@GrpcMethod('StylistService', 'FindOneStylist')`. `MS1-Appointments` lo consume como cliente (`ClientGrpc` + `getService<StylistGrpcService>('StylistService')`) al crear una cita, para validar en tiempo real que el estilista existe y está activo antes de reservar el horario.
+
+Las llamadas están envueltas en try/catch: si el estilista no existe se devuelve `NotFoundException`, si está inactivo se devuelve `BadRequestException`, y si el microservicio gRPC no responde (código `UNAVAILABLE`) se captura ese caso puntual y se informa al cliente que el servicio no está disponible en vez de dejar caer la petición sin explicación.
+
+### Segundo transporte — RabbitMQ
+
+Se agregó RabbitMQ como segundo broker de mensajería (además de Redis, usado en la Tarea 1), con un flujo PUB/SUB distinto al ya existente: al crear una cita, `MS1-Appointments` publica el evento `appointment.created` en un exchange `fanout` (`appointments.events`), y `MS3-Inventory-Billing` está suscrito a la cola `inventory-billing.appointment-created` para **reservar** el stock de los productos vinculados al servicio de la cita (distinto al flujo de Redis del Avance 1, que descuenta el stock al **completar** la cita).
+
+```bash
+docker compose up -d --build
+# panel de administración de RabbitMQ
+# http://localhost:15672  (guest / guest)
+```
+
+El publicador (`RabbitmqPublisherService`) se conecta al iniciar el microservicio y expone un método `publish(routingKey, payload)` que serializa el evento y lo envía al exchange. El consumidor (`RabbitmqConsumerService`) declara la cola, la enlaza al exchange y, por cada mensaje, llama a `InventoryService.reserveForService()`, que incrementa el campo `reserved` de cada producto vinculado a ese servicio.
+
+![Respuesta del Create Appointment en Postman](docs/evidencias/rabbitmq-postman-response.png)
+
+![Logs de ms-appointments publicando appointment.created a RabbitMQ](docs/evidencias/rabbitmq-publisher-logs.png)
+
+![Logs de ms-inventory-billing consumiendo el evento y reservando stock](docs/evidencias/rabbitmq-consumer-logs.png)
+
+![Exchange appointments.events en el panel de RabbitMQ](docs/evidencias/rabbitmq-exchange.png)
+
+![Cola inventory-billing.appointment-created en el panel de RabbitMQ](docs/evidencias/rabbitmq-queue.png)
 
 ### 🔁 Comparación de transportes
 | Transporte | Tipo | Patrón | Uso en el proyecto |
 |---|---|---|---|
-| TCP | Síncrono | Petición-respuesta | << >> |
-| Redis | Asíncrono | PUB/SUB | << >> |
-| <<RabbitMQ/MQTT/NATS>> | Asíncrono | <<PUB/SUB o queue>> | << >> |
-| gRPC | Síncrono | Contrato/RPC | << >> |
+| TCP | Síncrono | Petición-respuesta | Gateway → MS1/MS2/MS3 y MS1 → MS2 para validaciones de negocio en tiempo real |
+| Redis | Asíncrono | PUB/SUB | MS1 publica `appointment.completed`; MS3 descuenta stock y factura al completar la cita |
+| RabbitMQ | Asíncrono | PUB/SUB (exchange fanout + cola) | MS1 publica `appointment.created`; MS3 reserva stock al agendar la cita |
+| gRPC | Síncrono | Contrato/RPC | MS1 valida estilista/servicio contra MS2 con un contrato `.proto` tipado |
 
-✍️ <<1 párrafo: cuándo conviene cada uno.>>
+TCP y gRPC se usan cuando la respuesta debe conocerse antes de continuar (validar que un recurso existe antes de crear una cita); la diferencia entre ambos es que gRPC aporta un contrato explícito y tipado, mientras que TCP con NestJS Microservices es más flexible pero no impone ese contrato. Redis y RabbitMQ se usan para desacoplar procesos que no necesitan bloquear al emisor: Redis en este proyecto maneja el evento de cierre de la cita, y RabbitMQ el de apertura, cada uno consumido de forma independiente por MS3 sin que MS1 tenga que esperar el resultado.
 
 ### 🧯 Manejo de excepciones
-✍️ <<Qué errores se controlan y cómo (evidencia de un error que no tumba el servicio).>>
+
+- **gRPC:** `MS1-Appointments` distingue tres escenarios al llamar a `verifyStylistViaGrpc()`: estilista inexistente (`NotFoundException`), estilista inactivo (`BadRequestException`) y microservicio gRPC caído (código `UNAVAILABLE`, también devuelto como `BadRequestException` con un mensaje explícito). Ninguno de estos casos tumba el microservicio; el error se registra con `Logger.error` y se responde al cliente con un mensaje controlado.
+- **RabbitMQ:** el consumidor (`RabbitmqConsumerService`) envuelve tanto el parseo del mensaje como la reserva de stock en try/catch. Si el JSON llega corrupto o `reserveForService()` falla, el error se registra en logs y el mensaje se confirma (`ack`) igualmente, evitando que un mensaje inválido quede reintentándose indefinidamente y bloqueando la cola.
 
 ---
 

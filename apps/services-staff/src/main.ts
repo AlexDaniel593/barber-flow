@@ -1,9 +1,27 @@
 import { NestFactory } from '@nestjs/core';
 import { Transport, MicroserviceOptions } from '@nestjs/microservices';
 import { ValidationPipe } from '@nestjs/common';
+import * as fs from 'fs';
 import { join } from 'path';
 import { AppModule } from './app.module';
 import { RpcExceptionFilter } from './shared/filters/rpc-exception.filter';
+
+const getProtoPath = () => {
+  const paths = [
+    join(__dirname, '../proto/barber.proto'),
+    join(__dirname, '../../proto/barber.proto'),
+    join(__dirname, '../../../proto/barber.proto'),
+    join(__dirname, '../../../../proto/barber.proto'),
+    join(process.cwd(), 'proto/barber.proto'),
+    join(process.cwd(), 'apps/proto/barber.proto'),
+  ];
+  for (const p of paths) {
+    if (fs.existsSync(p)) {
+      return p;
+    }
+  }
+  return paths[paths.length - 1];
+};
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -20,7 +38,7 @@ async function bootstrap() {
     transport: Transport.GRPC,
     options: {
       package: 'barber',
-      protoPath: join(__dirname, '../../proto/barber.proto'),
+      protoPath: getProtoPath(),
       url: '0.0.0.0:50051',
     },
   });
