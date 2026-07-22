@@ -1,11 +1,13 @@
 /**
- * benchmark-latency.js — Mide latencia del camino síncrono y asíncrono.
+ * benchmark-latency.js — Mide latencia de los caminos síncrono y asíncrono.
  *   Adaptado para el Gateway con JWT de Barber-Flow.
  *   Requiere Node 18+ (usa fetch nativo).
  *
- * Camino Síncrono  : GET /api/services  → Gateway → MS2 (Services-Staff) [2 saltos TCP]
- * Camino Asíncrono : POST /api/appointments/check-availability → Gateway → MS1 → respuesta
- *                    (MS1 publica en Redis sin bloquear; el benchmark mide solo la aceptación)
+ * Caminos medidos:
+ *   1. Síncrono          : GET  /api/services           → Gateway → MS2 (1 salto TCP)
+ *   2. Completar cita     : PATCH /api/appointments/{id}/status → Gateway → MS1 → Redis PUB
+ *                                                         (dispara evento appointment.completed genuino)
+ *   3. Facturación        : POST /api/invoices           → Gateway → MS3 → MS2 (2 saltos TCP)
  *
  * Uso:
  *   node benchmark-latency.js
@@ -50,9 +52,12 @@ function printResultados(titulo, tiempos, errores) {
   return { prom, p95, max, errores };
 }
 
-async function medir(url, opciones, n, etiqueta) {
+async function medir(method, url, headers, body, n, etiqueta) {
   const tiempos = [];
   let errores = 0;
+
+  const opciones = { method, headers };
+  if (body) opciones.body = JSON.stringify(body);
 
   process.stdout.write(`\n⏳ Midiendo ${etiqueta} (${n} peticiones)...\n`);
 
@@ -60,7 +65,7 @@ async function medir(url, opciones, n, etiqueta) {
     const inicio = Date.now();
     try {
       const res = await fetch(url, opciones);
-      await res.text(); // consume el body
+      await res.text();
       if (!res.ok) errores++;
     } catch {
       errores++;
@@ -70,6 +75,145 @@ async function medir(url, opciones, n, etiqueta) {
   }
 
   return printResultados(etiqueta, tiempos, errores);
+}
+
+async function medirPatchStatus(appointmentIds, headers, n, etiqueta) {
+  const tiempos = [];
+  let errores = 0;
+
+  process.stdout.write(`\n⏳ Midiendo ${etiqueta} (${n} peticiones)...\n`);
+
+  for (let i = 0; i < n; i++) {
+    const inicio = Date.now();
+    try {
+      const res = await fetch(`${BASE_URL}/api/appointments/${appointmentIds[i]}/status`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ status: 'COMPLETED', notes: 'Benchmark' }),
+      });
+      await res.text();
+      if (!res.ok) errores++;
+    } catch {
+      errores++;
+    }
+    tiempos.push(Date.now() - inicio);
+    if ((i + 1) % 50 === 0) process.stdout.write(`  ${i + 1}/${n}\r`);
+  }
+
+  return printResultados(etiqueta, tiempos, errores);
+}
+
+async function medirCreateInvoice(appointmentIds, stylistId, headers, n, etiqueta) {
+  const tiempos = [];
+  let errores = 0;
+
+  process.stdout.write(`\n⏳ Midiendo ${etiqueta} (${n} peticiones)...\n`);
+
+  for (let i = 0; i < n; i++) {
+    const inicio = Date.now();
+    try {
+      const res = await fetch(`${BASE_URL}/api/invoices`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          appointmentId: appointmentIds[n + i],
+          stylistId,
+          items: [
+            { description: 'Corte Benchmark', quantity: 1, unitPrice: 25.00, total: 25.00 },
+          ],
+          paymentMethod: 'cash',
+        }),
+      });
+      await res.text();
+      if (!res.ok) errores++;
+    } catch {
+      errores++;
+    }
+    tiempos.push(Date.now() - inicio);
+    if ((i + 1) % 50 === 0) process.stdout.write(`  ${i + 1}/${n}\r`);
+  }
+
+  return printResultados(etiqueta, tiempos, errores);
+}
+
+async function setupTestData(headers) {
+  const totalNeeded = 2 * N;
+
+  console.log('\n📦 PASO 2 — Creando datos de prueba...');
+  console.log(`   Serán necesarias ${totalNeeded} citas (${N} para completar + ${N} para facturar).`);
+
+  // Crear estilista
+  const stylistRes = await fetch(`${BASE_URL}/api/stylists`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      name: 'Benchmark Stylist',
+      email: `stylist.bench.${Date.now()}@test.com`,
+      phone: '0999999999',
+      specialties: ['Corte'],
+      workingHours: { monday: '09:00-18:00' },
+    }),
+  });
+  if (!stylistRes.ok) {
+    const text = await stylistRes.text();
+    throw new Error(`Error creando estilista (${stylistRes.status}): ${text}`);
+  }
+  const stylist = await stylistRes.json();
+  console.log(`   ✅ Estilista creado: ${stylist.id}`);
+
+  // Crear servicio
+  const serviceRes = await fetch(`${BASE_URL}/api/services`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      name: 'Benchmark Service',
+      price: 25.00,
+      duration: 30,
+      category: 'Corte',
+    }),
+  });
+  if (!serviceRes.ok) {
+    const text = await serviceRes.text();
+    throw new Error(`Error creando servicio (${serviceRes.status}): ${text}`);
+  }
+  const service = await serviceRes.json();
+  console.log(`   ✅ Servicio creado: ${service.id}`);
+
+  // Crear citas
+  const appointmentIds = [];
+  for (let i = 0; i < totalNeeded; i++) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(10 + Math.floor(i / 8), (i % 8) * 15, 0, 0);
+
+    const aptRes = await fetch(`${BASE_URL}/api/appointments`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        clientName: `Bench Client ${i}`,
+        clientPhone: '0999000000',
+        clientEmail: `bench.client.${i}@test.com`,
+        stylistId: stylist.id,
+        serviceId: service.id,
+        startTime: tomorrow.toISOString(),
+        duration: 30,
+      }),
+    });
+    if (!aptRes.ok) {
+      const text = await aptRes.text();
+      console.error(`   ❌ Error creando cita ${i}: ${aptRes.status} ${text}`);
+      throw new Error(`Setup falló en cita ${i}`);
+    }
+    const apt = await aptRes.json();
+    appointmentIds.push(apt.id);
+
+    if ((i + 1) % 50 === 0 || i === totalNeeded - 1) {
+      process.stdout.write(`   Progreso: ${i + 1}/${totalNeeded} citas creadas\r`);
+    }
+  }
+  console.log(`\n   ✅ ${totalNeeded} citas creadas exitosamente`);
+
+  return { stylistId: stylist.id, appointmentIds };
 }
 
 // ──────────────────────────────────────────────
@@ -118,43 +262,56 @@ async function medir(url, opciones, n, etiqueta) {
     'Content-Type': 'application/json',
   };
 
-  // ── CAMINO SÍNCRONO ──
+  // ── CREAR DATOS DE PRUEBA ──
+  const { stylistId, appointmentIds } = await setupTestData(headers);
+
+  // ── 1. CAMINO SÍNCRONO ──
   // GET /api/services  →  Gateway (HTTP) → TCP → MS2 (Services-Staff)
-  // Dos saltos en cadena: si MS2 está caído, la petición falla.
-  console.log('\n📡 PASO 2 — Camino SÍNCRONO');
-  console.log('   Ruta: Cliente → Gateway → MS2 (Services-Staff) [TCP]');
+  // Un salto en cadena: si MS2 está caído, la petición falla.
+  console.log('\n📡 PASO 3 — Camino SÍNCRONO');
+  console.log('   Ruta: Cliente → Gateway → MS2 (Services-Staff) [1 salto TCP]');
   console.log(`   URL : GET ${BASE_URL}/api/services\n`);
 
   const sincrono = await medir(
-    `${BASE_URL}/api/services`,
-    { method: 'GET', headers },
-    N,
+    'GET', `${BASE_URL}/api/services`,
+    headers, null, N,
     'Síncrono (Gateway→MS2)',
   );
 
-  // ── CAMINO ASÍNCRONO ──
-  // POST /api/appointments/check-availability → Gateway → MS1
-  // MS1 verifica disponibilidad; cuando crea una cita, publica en Redis sin bloquear.
-  // Aquí medimos la aceptación de la petición por MS1 (no espera a MS3).
-  console.log('\n⚡ PASO 3 — Camino ASÍNCRONO');
-  console.log('   Ruta: Cliente → Gateway → MS1 (Appointments) → Redis PUB (no bloquea)');
-  console.log(`   URL : GET ${BASE_URL}/api/appointments\n`);
+  // ── 2. EVENTO appointment.completed GENUINO ──
+  // PATCH /api/appointments/{id}/status → Gateway → MS1 → Redis PUB
+  // MS1 publica el evento "appointment.completed" en Redis y responde sin esperar a MS3.
+  console.log('\n⚡ PASO 4 — Evento appointment.completed genuino');
+  console.log('   Ruta: Cliente → Gateway → MS1 (Appointments) → Redis PUB');
+  console.log(`   URL : PATCH ${BASE_URL}/api/appointments/{id}/status  (status=COMPLETED)\n`);
 
-  const asincrono = await medir(
-    `${BASE_URL}/api/appointments`,
-    { method: 'GET', headers },
-    N,
-    'Asíncrono (Gateway→MS1)',
+  const completar = await medirPatchStatus(
+    appointmentIds, headers, N,
+    'Completar cita (Gateway→MS1→Redis)',
+  );
+
+  // ── 3. CADENA REAL DE FACTURACIÓN ──
+  // POST /api/invoices → Gateway (HTTP) → MS3 (TCP) → MS2 (TCP, validar estilista)
+  // Dos saltos síncronos en cadena: si MS2 está caído, la facturación falla.
+  console.log('\n💰 PASO 5 — Cadena real de facturación');
+  console.log('   Ruta: Cliente → Gateway → MS3 (Inventory-Billing) → MS2 (Services-Staff)');
+  console.log('   [2 saltos TCP: Gateway→MS3 y MS3→MS2 para validar estilista]');
+  console.log(`   URL : POST ${BASE_URL}/api/invoices\n`);
+
+  const facturacion = await medirCreateInvoice(
+    appointmentIds, stylistId, headers, N,
+    'Facturación (Gateway→MS3→MS2)',
   );
 
   // ── RESUMEN FINAL ──
-  console.log('\n\n╔══════════════════════════════════════════════════════╗');
-  console.log('║          TABLA COMPLETA PARA EL README              ║');
-  console.log('╠══════════════════════════════════════════════════════╣');
-  console.log('║ Camino                   | Prom(ms) | p95(ms)| Máx(ms)║');
-  console.log('╠══════════════════════════════════════════════════════╣');
-  console.log(`║ Síncrono (Gateway→MS2)   | ${sincrono.prom.toFixed(2).padStart(8)} | ${sincrono.p95.toFixed(2).padStart(6)} | ${sincrono.max.toFixed(2).padStart(7)} ║`);
-  console.log(`║ Asíncrono (Gateway→MS1)  | ${asincrono.prom.toFixed(2).padStart(8)} | ${asincrono.p95.toFixed(2).padStart(6)} | ${asincrono.max.toFixed(2).padStart(7)} ║`);
-  console.log('╚══════════════════════════════════════════════════════╝');
+  console.log('\n\n╔══════════════════════════════════════════════════════════╗');
+  console.log('║            TABLA COMPLETA PARA EL README                ║');
+  console.log('╠══════════════════════════════════════════════════════════╣');
+  console.log('║ Camino                       | Prom(ms) | p95(ms)| Máx(ms)║');
+  console.log('╠══════════════════════════════════════════════════════════╣');
+  console.log(`║ Síncrono (Gateway→MS2)       | ${sincrono.prom.toFixed(2).padStart(8)} | ${sincrono.p95.toFixed(2).padStart(6)} | ${sincrono.max.toFixed(2).padStart(7)} ║`);
+  console.log(`║ Completar cita (Gateway→MS1) | ${completar.prom.toFixed(2).padStart(8)} | ${completar.p95.toFixed(2).padStart(6)} | ${completar.max.toFixed(2).padStart(7)} ║`);
+  console.log(`║ Facturación (Gateway→MS3→MS2)| ${facturacion.prom.toFixed(2).padStart(8)} | ${facturacion.p95.toFixed(2).padStart(6)} | ${facturacion.max.toFixed(2).padStart(7)} ║`);
+  console.log('╚══════════════════════════════════════════════════════════╝');
 
 })();
