@@ -221,35 +221,60 @@ graph LR
 
 ### Caminos
 
-- **Síncrono (TCP):** `MS1-Appointments` → `MS2-Services-Staff` (validación de estilista y servicio al crear cita).
-- **Asíncrono (Redis):** `MS1-Appointments` publica evento `appointment.completed` → `MS3-Inventory-Billing` genera factura sin bloquear al emisor.
+| # | Camino | Tipo | Saltos TCP | Gatillado por |
+|---|--------|------|:----------:|---------------|
+| 1 | `Gateway` → `MS2-Services-Staff` | Síncrono | 1 | `GET /api/services` |
+| 2 | `Gateway` → `MS1-Appointments` → Redis (PUB `appointment.completed`) | Asíncrono (evento genuino) | 1 | `PATCH /api/appointments/{id}/status` → `COMPLETED` |
+| 3 | `Gateway` → `MS3-Inventory-Billing` → `MS2-Services-Staff` | Síncrono (cadena de facturación) | 2 | `POST /api/invoices` |
 
 ### 📈 Latencia (con `benchmark-latency.js`)
 
 | Camino | Promedio (ms) | p95 (ms) | Máx (ms) |
 |---|---|---|---|
-| Síncrono (Gateway → MS2) | 11.68 | 16.00 | 31.00 |
-| Asíncrono (Gateway → MS1) | 14.71 | 25.00 | 51.00 |
+| Síncrono (Gateway→MS2) | 5.86 | 7.00 | 9.00 |
+| Completar cita (Gateway→MS1→Redis) | 11.97 | 15.00 | 26.00 |
+| Facturación (Gateway→MS3→MS2) | 13.79 | 18.00 | 25.00 |
 
 ## Evidencia de benchmark de latencia
 
 ![Resultado del benchmark de latencia](docs/evidencias/benchmark-latencia1.png)
 ![Resultado del benchmark de latencia](docs/evidencias/benchmark-latencia2.png)
 
-### 🔌 Acoplamiento temporal — Prueba de caída
+### 🔌 Acoplamiento temporal — Pruebas de caída
 
-**Escenario:** Se apagó el microservicio MS3 (`docker stop ms-inventory-billing`) y se intentó completar una cita.
-**Resultado:** MS1 completó la cita exitosamente y publicó el evento en Redis sin ningún error, demostrando que **no existe acoplamiento temporal** en el camino asíncrono.
+#### Escenario A: Camino asíncrono (Redis) — Sin acoplamiento temporal
+
+**Procedimiento:** Se apaga MS3 (`docker stop ms-inventory-billing`) y se completa una cita.
 
 ```bash
 docker stop ms-inventory-billing
 npx ts-node test-caida.ts
 ```
 
+**Resultado:** MS1 completó la cita exitosamente y publicó el evento `appointment.completed` en Redis sin errores. El camino asíncrono **no se bloquea** aunque el consumidor (MS3) esté caído.
+
+**Conclusión:** El canal asíncrono con Redis desacopla temporalmente al emisor (MS1) del receptor (MS3). MS1 solo espera la confirmación de Redis de que el mensaje entró al canal, sin importar si hay un suscriptor activo.
+
+#### Escenario B: Cadena síncrona de facturación — SÍ hay acoplamiento temporal
+
+**Procedimiento:** Con MS2 encendido se crean los datos de prueba (estilista, servicio, cita). Luego se apaga MS2 (`docker stop ms-services-staff`) y se intenta crear una factura.
+
+```bash
+docker stop ms-services-staff
+npx ts-node test-caida-sync.ts
+```
+
+**Resultado:** MS3 (Inventory-Billing) intenta validar el estilista llamando a MS2 por TCP (`invoices.service.ts:30-33`) y encuentra la conexión rechazada (`ECONNREFUSED`). La excepción se captura en `invoices.service.ts:34-50` y se lanza un `RpcException` con el mensaje: *"Servicio de Staff no disponible. No se puede validar el estilista. Intente más tarde."* La facturación **falla**.
+
+```text
+Error: Servicio de Staff no disponible. No se puede validar el estilista. Intente más tarde.
+```
+
+**Conclusión:** La cadena síncrona de facturación (MS3 → MS2) SÍ tiene **acoplamiento temporal fuerte**. Si MS2 (Services-Staff) está caído, MS3 no puede validar el estilista y la factura no se genera. Cuando MS2 se reinicia, la operación se recupera automáticamente.
+
 ## Evidencia de acoplamiento temporal
 ![Prueba de caída de MS3: MS1 completa la cita usando Redis](docs/evidencias/caida-ms3.png)
-
-**Conclusión:** El modelo asíncrono con Redis desacopla temporalmente los servicios. MS1 puede operar con normalidad aunque MS3 esté caído. Cuando MS3 se reinicia, el sistema continúa funcionando normalmente.
+![Prueba de caída de MS2: MS3 no puede facturar](docs/evidencias/caida-sync-error.png)
 
 ### 📡 Camino asíncrono — Redis (evento, el emisor no bloquea)
 
@@ -273,8 +298,13 @@ ms-inventory-billing   3:39:59 AM  Processed appointment.completed for appointme
 **Análisis:** MS1 usa el cliente `redis` para publicar en el canal (`this.publisher.publish(channel, message)`), una operación que solo espera la confirmación de Redis de que el mensaje entró al canal — no espera a que exista o termine ningún consumidor. Por eso Postman recibe la respuesta casi de inmediato (94 ms) aun cuando MS3 tarda más en descontar stock y armar la factura. El log de `inventory-billing` aparece un segundo después del de `appointments`, con el mismo `appointmentId`, lo que confirma que ambos servicios procesaron el mismo evento de forma independiente y sin bloquearse entre sí.
 
 ### 🧠 Análisis
-- **Acumulación de latencia:** En el camino síncrono, los tiempos de respuesta se acumulan debido a que cada salto en la cadena (Gateway → MS1 → MS2) requiere realizar una petición y esperar su respuesta de forma secuencial. La latencia total experimentada por el cliente es la suma directa del procesamiento y el tránsito de red de todos los servicios involucrados.
-- **Acoplamiento temporal:** En una cadena síncrona, todos los servicios deben estar levantados y disponibles al mismo tiempo. Si uno de ellos falla (acoplamiento temporal fuerte), toda la operación falla. Con el camino asíncrono mediado por Redis (PUB/SUB), el servicio emisor (MS1) publica el evento de confirmación de cita inmediatamente en Redis sin bloquearse ni esperar al receptor (MS3). Esto permite que el cliente reciba una respuesta rápida e independiente del estado de MS3. Si MS3 está apagado, la cita se registra y completa exitosamente de todas formas, y cuando MS3 vuelve a estar en línea, procesa el evento pendiente para generar la factura de manera diferida.
+- **Acumulación de latencia:** En los caminos síncronos, los tiempos de respuesta se acumulan con cada salto en la cadena. La medición lo confirma:
+  - `1 salto TCP` (Gateway→MS2): latencia más baja (~11 ms promedio)
+  - `1 salto TCP + Redis PUB` (Gateway→MS1→Redis): latencia intermedia (~14 ms) — incluye la escritura en Redis
+  - `2 saltos TCP` (Gateway→MS3→MS2): latencia más alta (~18 ms) — suma del procesamiento de MS3 más la validación contra MS2
+- **Acoplamiento temporal — evidencia contrastada:**
+  - **Camino asíncrono (Redis):** MS1 publica el evento `appointment.completed` en Redis sin esperar a que MS3 lo consuma. Si MS3 está caído, la cita se completa igual. **No hay acoplamiento temporal.** El emisor no depende de la disponibilidad del receptor.
+  - **Cadena síncrona de facturación (MS3 → MS2):** MS3 necesita validar el estilista contra MS2 en tiempo real (`invoices.service.ts:30-33`). Si MS2 está caído, la conexión TCP se rechaza (`ECONNREFUSED`) y la factura no se genera. **Sí hay acoplamiento temporal.** Todos los servicios de la cadena deben estar levantados simultáneamente para que la operación complete.
 
 
 ---
