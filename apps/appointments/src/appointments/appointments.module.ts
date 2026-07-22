@@ -6,10 +6,6 @@ import { join } from 'path';
 import { AppointmentsService } from './appointments.service';
 import { AppointmentsController } from './appointments.controller';
 import { Appointment } from './entities/appointment.entity';
-import { Stylist } from './entities/stylist.entity';
-import { Service } from './entities/service.entity';
-import { InventoryConsumption } from './entities/inventory-consumption.entity';
-import { Invoice } from './entities/invoice.entity';
 import { AppointmentEventsModule } from '../events/appointment-events/appointment-events.module';
 import { RabbitmqPublisherModule } from '../events/rabbitmq-publisher/rabbitmq-publisher.module';
 
@@ -32,7 +28,7 @@ const getProtoPath = () => {
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Appointment, Stylist, Service, InventoryConsumption, Invoice]),
+    TypeOrmModule.forFeature([Appointment]),
     AppointmentEventsModule,
     RabbitmqPublisherModule,
     ClientsModule.register([

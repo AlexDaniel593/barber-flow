@@ -19,6 +19,7 @@ export class StylistsController {
         name: stylist.name,
         email: stylist.email,
         isActive: stylist.isActive,
+        workingHours: JSON.stringify(stylist.workingHours ?? {}),
       };
     } catch (error) {
       throw new RpcException({
