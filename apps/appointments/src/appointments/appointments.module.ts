@@ -21,7 +21,7 @@ import { AppointmentEventsModule } from '../events/appointment-events/appointmen
         transport: Transport.GRPC,
         options: {
           package: 'barber',
-          protoPath: join(__dirname, '../../../proto/barber.proto'),
+          protoPath: join(__dirname, '../../proto/barber.proto'),
           url: process.env.SVC_STYLIST_GRPC_HOST || 'localhost:50051',
         },
       },
