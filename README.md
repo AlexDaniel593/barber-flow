@@ -51,7 +51,7 @@ El objetivo principal es **demostrar el funcionamiento de una arquitectura de mi
 |------|------------|-----------|
 | **Framework** | NestJS | Framework principal para todos los microservicios y API Gateway |
 | **Lenguaje** | TypeScript | Tipado estático y mejores prácticas de desarrollo |
-| **ORM** | Prisma | Manejo de base de datos, migrations y queries tipadas |
+| **ORM** | TypeORM | Manejo de base de datos, migrations y queries tipadas |
 | **Base de Datos** | PostgreSQL | Base de datos relacional para persistencia de datos |
 
 ---
@@ -142,13 +142,14 @@ graph TB
     G -->|TCP| MS2
     G -->|TCP| MS3
     
-    MS1 -->|TCP Consulta| MS2
     MS1 -->|🔄 gRPC FindOneStylist<br/>🔄 gRPC FindOneService| MS2
     MS1 -->|PUBLISH Eventos| R
     R -->|SUBSCRIBE| MS3
     
     MS1 -->|PUBLISH a RabbitMQ| MQ
     MQ -->|CONSUME| MS3
+
+    MS3 -->|TCP Consulta| MS2
     
     MS1 --> DB
     MS2 --> DB
@@ -196,7 +197,8 @@ graph LR
 ```
 
 ## 🧭 Metodología
-- **Kanban:** [GitHub Projects](https://github.com/users/AlexDaniel593/projects/1/views/1) (captura en /docs).
+- **Kanban:** [GitHub Projects](https://github.com/users/AlexDaniel593/projects/1/views/1)
+  ![Tablero Kanban](docs/evidencias/kanban.png)
 - **Ramificación:** <<GitHub Flow>> — `main` protegida, ramas `feat/…`, PRs revisados, tags por avance.
 - **Commits semánticos:** Conventional Commits.
 
