@@ -51,7 +51,7 @@ El objetivo principal es **demostrar el funcionamiento de una arquitectura de mi
 |------|------------|-----------|
 | **Framework** | NestJS | Framework principal para todos los microservicios y API Gateway |
 | **Lenguaje** | TypeScript | Tipado estático y mejores prácticas de desarrollo |
-| **ORM** | Prisma | Manejo de base de datos, migrations y queries tipadas |
+| **ORM** | TypeORM | Manejo de base de datos, migrations y queries tipadas |
 | **Base de Datos** | PostgreSQL | Base de datos relacional para persistencia de datos |
 
 ---
