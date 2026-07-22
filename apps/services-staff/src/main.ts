@@ -3,6 +3,7 @@ import { Transport, MicroserviceOptions } from '@nestjs/microservices';
 import { ValidationPipe } from '@nestjs/common';
 import { join } from 'path';
 import { AppModule } from './app.module';
+import { RpcExceptionFilter } from './shared/filters/rpc-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -24,6 +25,7 @@ async function bootstrap() {
     },
   });
 
+  app.useGlobalFilters(new RpcExceptionFilter());
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
