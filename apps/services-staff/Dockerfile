@@ -23,4 +23,4 @@ COPY --from=builder /app/apps/proto ./proto
 EXPOSE 3002
 EXPOSE 50051
 
-CMD ["node", "dist/main"]
+CMD ["node", "dist/src/main"]

@@ -2,7 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { Transport, MicroserviceOptions } from '@nestjs/microservices';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
-import { RpcErrorFilter } from './common/filters/rpc-exception.filter';
+import { RpcExceptionFilter } from './shared/filters/rpc-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.createMicroservice<MicroserviceOptions>(
@@ -16,6 +16,7 @@ async function bootstrap() {
     },
   );
 
+  app.useGlobalFilters(new RpcExceptionFilter());
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -23,8 +24,6 @@ async function bootstrap() {
       transform: true,
     }),
   );
-
-  app.useGlobalFilters(new RpcErrorFilter());
 
   await app.listen();
   console.log('Microservicio ms-appointments corriendo en TCP:3001');

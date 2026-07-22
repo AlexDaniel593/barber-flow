@@ -26,17 +26,38 @@ export class InvoicesService {
 
   async create(dto: CreateInvoiceDto): Promise<Invoice> {
     try {
+      let stylist: any;
       try {
-        const stylist = await firstValueFrom(
+        stylist = await firstValueFrom(
           this.staffClient.send({ cmd: 'stylists.findOne' }, { id: dto.stylistId }),
         );
+      } catch (connectionError: any) {
+        const errorMsg = connectionError?.message || String(connectionError);
+        const isConnectionError =
+          errorMsg.includes('ECONNREFUSED') ||
+          errorMsg.includes('ETIMEDOUT') ||
+          errorMsg.includes('TIMEOUT') ||
+          errorMsg.includes('connect') ||
+          errorMsg.includes('closed');
 
-        if (!stylist) {
+        if (isConnectionError) {
+          this.logger.error(
+            `MS-Services-Staff inalcanzable al validar estilista ${dto.stylistId}: ${errorMsg}`,
+          );
           throw new RpcException(
-            `El estilista con ID ${dto.stylistId} no existe en la base de datos de Staff.`,
+            `Servicio de Staff no disponible. No se puede validar el estilista. Intente más tarde.`,
           );
         }
-      } catch {
+
+        this.logger.warn(
+          `Error de negocio al buscar estilista ${dto.stylistId}: ${errorMsg}`,
+        );
+        throw new RpcException(
+          `El estilista con ID ${dto.stylistId} no existe en la base de datos de Staff.`,
+        );
+      }
+
+      if (!stylist) {
         throw new RpcException(
           `El estilista con ID ${dto.stylistId} no existe en la base de datos de Staff.`,
         );

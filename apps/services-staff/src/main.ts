@@ -4,7 +4,7 @@ import { ValidationPipe } from '@nestjs/common';
 import * as fs from 'fs';
 import { join } from 'path';
 import { AppModule } from './app.module';
-import { GrpcExceptionFilter } from './common/filters/grpc-exception.filter';
+import { RpcExceptionFilter } from './shared/filters/rpc-exception.filter';
 
 const getProtoPath = () => {
   const paths = [
@@ -43,6 +43,7 @@ async function bootstrap() {
     },
   });
 
+  app.useGlobalFilters(new RpcExceptionFilter());
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -50,8 +51,6 @@ async function bootstrap() {
       transform: true,
     }),
   );
-
-  app.useGlobalFilters(new GrpcExceptionFilter());
 
   await app.startAllMicroservices();
   console.log('Microservicio ms-services-staff corriendo en TCP:3002 y gRPC:50051');

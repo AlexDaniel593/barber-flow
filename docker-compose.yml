@@ -75,6 +75,7 @@ services:
     restart: unless-stopped
     ports:
       - "3002:3002"
+      - "50051:50051"
     networks:
       - barber-flow-network
 

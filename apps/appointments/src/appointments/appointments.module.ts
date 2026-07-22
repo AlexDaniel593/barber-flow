@@ -37,6 +37,7 @@ const getProtoPath = () => {
         transport: Transport.GRPC,
         options: {
           package: 'barber',
+          protoPath: join(__dirname, '../../proto/barber.proto'),
           protoPath: getProtoPath(),
           url: process.env.SVC_STYLIST_GRPC_HOST || 'localhost:50051',
         },
