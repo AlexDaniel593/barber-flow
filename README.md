@@ -197,7 +197,8 @@ graph LR
 ```
 
 ## 🧭 Metodología
-- **Kanban:** [GitHub Projects](https://github.com/users/AlexDaniel593/projects/1/views/1) (captura en /docs).
+- **Kanban:** [GitHub Projects](https://github.com/users/AlexDaniel593/projects/1/views/1)
+  ![Tablero Kanban](docs/evidencias/kanban.png)
 - **Ramificación:** <<GitHub Flow>> — `main` protegida, ramas `feat/…`, PRs revisados, tags por avance.
 - **Commits semánticos:** Conventional Commits.
 
