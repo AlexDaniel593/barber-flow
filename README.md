@@ -385,7 +385,38 @@ TCP y gRPC se usan cuando la respuesta debe conocerse antes de continuar (valida
 
 ## 🔵 Avance 3 — Seguridad, observabilidad e integración (FINAL) · `tag v3-final`
 ### 🔐 Autenticación y autorización
-✍️ <<Login que emite JWT; Guard que protege rutas. Evidencia: 200 con token, 401 sin token (y 403 por rol si aplica).>>
+
+En el **API Gateway** se implementó autenticación con JWT y autorización por roles (`client` y `admin`) usando Guards de NestJS.
+
+- **Login que emite JWT:** `POST /api/auth/login` valida credenciales y devuelve `access_token` + datos básicos del usuario.
+- **Guard de autenticación (JWT):** protege rutas privadas; si no existe token o es inválido/expirado, responde **401 Unauthorized**.
+- **Guard de roles (RBAC):** además del token, verifica permisos por endpoint; si el usuario autenticado no tiene el rol requerido, responde **403 Forbidden**.
+
+#### Evidencias
+
+1. **Login exitoso (token emitido)**
+
+![Login admin con JWT emitido](docs/evidencias/jwt/jwt-login-admin-201.png)
+
+![Login cliente con JWT emitido](docs/evidencias/jwt/jwt-login-cliente-201.png)
+
+2. **Acceso a ruta protegida con token válido (200 OK)**
+
+![Ruta protegida con token válido](docs/evidencias/jwt/jwt-ruta-protegida-token-valido.png)
+
+3. **Acceso sin token o con token inválido (401 Unauthorized)**
+
+![Ruta protegida sin token](docs/evidencias/jwt/jwt-ruta-protegida-sin-token.png)
+
+![Ruta protegida con token inválido](docs/evidencias/jwt/jwt-ruta-protegida-token-invalido.png)
+
+![Credenciales inválidas en login](docs/evidencias/jwt/jwt-credenciales-invalidadas-401.png)
+
+4. **Acceso con rol insuficiente (403 Forbidden)**
+
+![Ruta protegida con rol inválido](docs/evidencias/jwt/jwt-ruta-protegida-rol-invalido-403.png)
+
+**Conclusión:** El flujo de seguridad del Gateway cumple los tres escenarios esperados del avance: emisión de JWT en login, bloqueo con **401** cuando no hay autenticación válida y bloqueo con **403** cuando el usuario autenticado no tiene permisos para la operación.
 
 ### 📊 Observabilidad (Sentry)
 ✍️ <<Qué se registra; captura del error en el panel de Sentry.>>
