@@ -2,7 +2,6 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateCol
 
 export enum UserRole {
   ADMIN = 'admin',
-  STYLIST = 'stylist',
   CLIENT = 'client',
 }
 
