@@ -92,4 +92,16 @@ export class StylistsController {
     await this.stylistsService.remove(data.id);
     return { success: true };
   }
+
+  /**
+   * Actividad B — handler TCP para que el Gateway acceda directamente
+   * a GetStylistWorkingHours sin pasar por appointments.
+   * Reutiliza el método gRPC getStylistWorkingHours y devuelve la misma
+   * estructura para que el Gateway no duplique la lógica de mapeo.
+   */
+  @MessagePattern({ cmd: 'stylists.getStylistWorkingHours' })
+  async getStylistWorkingHoursMsg(@Payload() data: { id: string }) {
+    return this.getStylistWorkingHours(data);
+  }
 }
+
