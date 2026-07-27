@@ -15,6 +15,12 @@ export class InvoicesController {
   }
 
   @Roles(UserRole.ADMIN)
+  @Get('by-appointment/:appointmentId')
+  findByAppointment(@Param('appointmentId') appointmentId: string) {
+    return this.invoicesService.findByAppointment(appointmentId);
+  }
+
+  @Roles(UserRole.ADMIN)
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.invoicesService.findOne(id);
