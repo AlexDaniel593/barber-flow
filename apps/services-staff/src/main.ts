@@ -29,6 +29,8 @@ const getProtoPath = () => {
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  app.useGlobalFilters(new RpcExceptionFilter());
+
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.TCP,
     options: {
@@ -46,7 +48,6 @@ async function bootstrap() {
     },
   });
 
-  app.useGlobalFilters(new RpcExceptionFilter());
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
