@@ -247,6 +247,28 @@ services:
           cpus: "0.5"
           memory: 300M
 
+  # ---- Frontend Admin ----
+  frontend-admin:
+    build:
+      context: .
+      dockerfile: frontend/admin/Dockerfile
+      args:
+        VITE_API_URL: ${FRONTEND_ADMIN_API_URL:-http://localhost:3000/api}
+    container_name: frontend-admin
+    ports:
+      - "5173:80"
+    depends_on:
+      gateway:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - barber-flow-network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
 volumes:
   postgres-data:
 
