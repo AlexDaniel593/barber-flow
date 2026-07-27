@@ -21,6 +21,7 @@ export const stylistsMessagePatterns = {
 export const invoicesMessagePatterns = {
   CREATE: 'invoices.create',
   FIND_ONE: 'invoices.findOne',
+  FIND_BY_APPOINTMENT: 'invoices.findByAppointment',
 };
 
 export const appointmentsMessagePatterns = {
