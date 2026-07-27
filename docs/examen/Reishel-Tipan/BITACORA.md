@@ -12,8 +12,8 @@
 | **Actividad asignada** | E — Filtro de excepciones y mapeo de códigos |
 | **Rama** | `exam/Reishel-Tipan` |
 | **Tag** | `examen-Reishel-Tipan` *(pendiente de crear al cierre)* |
-| **Pull Request** | *(pendiente — se agrega al abrir el PR)* |
-| **Tarjeta Kanban** | *(pendiente — agregar enlace de la tarjeta ya creada)* |
+| **Pull Request** | https://github.com/AlexDaniel593/barber-flow/pull/77 |
+| **Tarjeta Kanban** | https://github.com/users/AlexDaniel593/projects/1/views/1?pane=issue&itemId=219050457&issue=AlexDaniel593%7Cbarber-flow%7C72 |
 | **¿Hiciste el Paso 0?** | No aplica — la actividad E no tiene prerrequisito de Avance 3 (no requiere JWT ni Sentry como base). |
 
 ---
@@ -104,6 +104,7 @@ En el primer intento de solución, la IA asumió que bastaba con tipar la excepc
 | [despues-notfound-404.png](despues-notfound-404.png) | GET al mismo stylist inexistente, ya con el fix aplicado: 404 con mensaje claro |
 | [antes-caso-ok-200.png](antes-caso-ok-200.png) / [despues-caso-ok-200.png](despues-caso-ok-200.png) | GET a un stylist que sí existe, antes y después del cambio: sigue devolviendo 200 sin regresión |
 | [antes-codigos.md](antes-codigos.md) / [despues-codigos.md](despues-codigos.md) | Tabla de auditoría de códigos HTTP por caso de error, antes y después de mi intervención |
+| [kanban-hecho.png](kanban-hecho.png) | Tarjeta propia en el Kanban del grupo, movida a Hecho y enlazada al PR |
 
 **Cómo reproducir mi cambio desde cero:**
 

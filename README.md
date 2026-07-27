@@ -457,3 +457,8 @@ Endpoint de verificación: `GET /api/health` muestra el estado de Sentry (`enabl
 
 ## 🏷️ Tags de entrega
 - `v1-avance1` — 15-07-2026 · `v2-avance2` — 18-07-2026 · `v3-final` — 22-07-2026
+
+## 🎓 Examen final
+
+### Examen final — Reishel Tipán
+Actividad E — Filtro de excepciones y mapeo de códigos. Bitácora completa: [docs/examen/Reishel-Tipan/BITACORA.md](docs/examen/Reishel-Tipan/BITACORA.md).
