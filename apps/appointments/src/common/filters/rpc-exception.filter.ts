@@ -14,10 +14,12 @@ export class RpcErrorFilter implements RpcExceptionFilter<any> {
     Sentry.withScope((scope) => {
       scope.setTag('service', 'appointments');
       scope.setTag('transport', 'tcp');
+      scope.setTag('failure_mode', 'rpc_exception');
       scope.setContext('rpc_error', {
         message: errorMsg,
         stack: exception.stack,
       });
+      scope.setExtra('rpc_error_data', exception);
       Sentry.captureException(exception);
     });
 

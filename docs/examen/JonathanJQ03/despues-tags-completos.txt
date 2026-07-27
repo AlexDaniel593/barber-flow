@@ -1,0 +1,11 @@
+=== ESTADO POSTERIOR A LA ACTIVIDAD D ===
+
+Todos los filtros globales capturan el contexto completo hacia Sentry.
+
+Tags registrados en cada evento:
+- service: gateway | appointments
+- transport: http | tcp
+- failure_mode: uncaught_exception | rpc_exception
+- correlation_id: corr-1722000000000 (propagado en headers/contexto)
+
+Prueba automatizada 'sentry-context.spec.ts' ejecutada y pasando exitosamente.

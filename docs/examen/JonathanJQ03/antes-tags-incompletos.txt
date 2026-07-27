@@ -1,0 +1,6 @@
+=== ESTADO PREVIO A LA ACTIVIDAD D ===
+Los errores capturados en Sentry hasta el momento del avance 3 y final solo registraban el stack trace básico.
+Faltaban los tags estandarizados como:
+- transport: no especificado en llamadas HTTP/TCP/gRPC
+- failure_mode: ausente
+- correlation_id: no existía trazabilidad entre Gateway y microservicios.

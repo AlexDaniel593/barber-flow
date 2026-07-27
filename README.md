@@ -457,3 +457,11 @@ Endpoint de verificación: `GET /api/health` muestra el estado de Sentry (`enabl
 
 ## 🏷️ Tags de entrega
 - `v1-avance1` — 15-07-2026 · `v2-avance2` — 18-07-2026 · `v3-final` — 22-07-2026
+
+---
+
+## Examen final — Javier Jaguaco
+
+- **Usuario GitHub:** @JonathanJQ03
+- **Actividad:** D — Observabilidad con contexto en un microservicio (Sentry)
+- **Bitácora y Evidencias:** `docs/examen/JonathanJQ03/BITACORA.md`
