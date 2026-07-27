@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { UsersModule } from './users/users.module';
+import { HealthModule } from './health/health.module';
 import { User } from './users/user.entity';
 
 @Module({
@@ -20,6 +21,7 @@ import { User } from './users/user.entity';
       entities: [User],
       synchronize: true,
     }),
+    HealthModule,
     UsersModule,
     ServicesModule,
     StylistsModule,

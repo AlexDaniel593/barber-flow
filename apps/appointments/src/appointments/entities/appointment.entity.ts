@@ -1,13 +1,13 @@
-import { 
-  Entity, 
-  PrimaryGeneratedColumn, 
-  Column, 
-  CreateDateColumn, 
-  UpdateDateColumn, 
-  ManyToOne, 
-  OneToMany, 
-  OneToOne, 
-  JoinColumn 
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  OneToMany,
+  OneToOne,
+  JoinColumn,
 } from 'typeorm';
 import { Stylist } from './stylist.entity';
 import { Service } from './service.entity';
@@ -40,14 +40,18 @@ export class Appointment {
   @Column({ type: 'uuid' })
   stylistId: string;
 
-  @ManyToOne(() => Stylist, (stylist) => stylist.appointments, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Stylist, (stylist) => stylist.appointments, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'stylistId' })
   stylist: Stylist;
 
   @Column({ type: 'uuid' })
   serviceId: string;
 
-  @ManyToOne(() => Service, (service) => service.appointments, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Service, (service) => service.appointments, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'serviceId' })
   service: Service;
 

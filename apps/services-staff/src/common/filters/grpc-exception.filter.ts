@@ -1,6 +1,7 @@
 import { Catch, ArgumentsHost, Logger } from '@nestjs/common';
 import { BaseRpcExceptionFilter, RpcException } from '@nestjs/microservices';
 import { status } from '@grpc/grpc-js';
+import * as Sentry from '@sentry/node';
 
 @Catch()
 export class GrpcExceptionFilter extends BaseRpcExceptionFilter {
@@ -13,6 +14,11 @@ export class GrpcExceptionFilter extends BaseRpcExceptionFilter {
 
     const error = exception as Error;
     this.logger.error(`Unhandled gRPC error: ${error.message}`, error.stack);
+
+    Sentry.captureException(exception, {
+      tags: { service: 'services-staff', filter: 'GrpcExceptionFilter' },
+      extra: { grpcCode: status.INTERNAL },
+    });
 
     const grpcError = new RpcException({
       code: status.INTERNAL,

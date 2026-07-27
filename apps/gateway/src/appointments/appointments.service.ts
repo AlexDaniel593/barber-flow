@@ -1,6 +1,7 @@
 import { Injectable, OnApplicationBootstrap, Logger } from '@nestjs/common';
 import { ClientProxy, ClientProxyFactory, Transport } from '@nestjs/microservices';
 import { lastValueFrom } from 'rxjs';
+import * as Sentry from '@sentry/node';
 import { appointmentsMessagePatterns } from '../constants';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { FindAppointmentsDto } from './dto/find-appointments.dto';
@@ -28,8 +29,10 @@ export class AppointmentsService implements OnApplicationBootstrap {
     try {
       await this.client.connect();
       this.logger.log('Conectado a appointments (TCP:3001)');
+      Sentry.addBreadcrumb({ category: 'startup', message: 'Gateway conectado a appointments TCP:3001', level: 'info' });
     } catch {
       this.logger.error('Error conectando a appointments');
+      Sentry.captureMessage('Gateway no pudo conectar a appointments TCP:3001', 'error');
     }
   }
 

@@ -1,8 +1,16 @@
-import { Injectable, Logger, NotFoundException, BadRequestException, OnModuleInit, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+  OnModuleInit,
+  Inject,
+} from '@nestjs/common';
 import { ClientGrpc } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, In, Not } from 'typeorm';
 import { Observable, lastValueFrom } from 'rxjs';
+import * as Sentry from '@sentry/node';
 import { Appointment, AppointmentStatus } from './entities/appointment.entity';
 import { Stylist } from './entities/stylist.entity';
 import { Service } from './entities/service.entity';
@@ -60,9 +68,13 @@ export class AppointmentsService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    this.stylistGrpcService = this.grpcClient.getService<StylistGrpcService>('StylistService');
-    this.serviceGrpcService = this.grpcClient.getService<ServiceGrpcService>('ServiceService');
-    this.logger.log('gRPC client connected to StylistService and ServiceService');
+    this.stylistGrpcService =
+      this.grpcClient.getService<StylistGrpcService>('StylistService');
+    this.serviceGrpcService =
+      this.grpcClient.getService<ServiceGrpcService>('ServiceService');
+    this.logger.log(
+      'gRPC client connected to StylistService and ServiceService',
+    );
   }
 
   // gRPC: Validate stylist exists via gRPC call to services-staff
@@ -71,10 +83,14 @@ export class AppointmentsService implements OnModuleInit {
       const response = await lastValueFrom(
         this.stylistGrpcService.findOneStylist({ id: stylistId }),
       );
-      this.logger.log(`gRPC verify OK: stylist ${response.name} (${response.id}) isActive=${response.isActive}`);
+      this.logger.log(
+        `gRPC verify OK: stylist ${response.name} (${response.id}) isActive=${response.isActive}`,
+      );
 
       if (!response.isActive) {
-        throw new BadRequestException('El estilista no está disponible (inactivo)');
+        throw new BadRequestException(
+          'El estilista no está disponible (inactivo)',
+        );
       }
 
       return response;
@@ -82,12 +98,26 @@ export class AppointmentsService implements OnModuleInit {
       if (error instanceof BadRequestException) {
         throw error;
       }
-      this.logger.error(`gRPC verify failed for stylist ${stylistId}: ${error.message}`);
-      const grpcError = error as any;
-      if (grpcError.code === 14 || grpcError.message?.includes('UNAVAILABLE') || grpcError.message?.includes('unavailable')) {
-        throw new BadRequestException('El servicio de estilistas no está disponible en este momento');
+      this.logger.error(
+        `gRPC verify failed for stylist ${stylistId}: ${error.message}`,
+      );
+      Sentry.captureException(error, {
+        tags: { service: 'appointments', component: 'grpc' },
+        extra: { operation: 'verifyStylist', stylistId },
+      });
+      const grpcError = error;
+      if (
+        grpcError.code === 14 ||
+        grpcError.message?.includes('UNAVAILABLE') ||
+        grpcError.message?.includes('unavailable')
+      ) {
+        throw new BadRequestException(
+          'El servicio de estilistas no está disponible en este momento',
+        );
       }
-      throw new NotFoundException(`Estilista con ID ${stylistId} no encontrado`);
+      throw new NotFoundException(
+        `Estilista con ID ${stylistId} no encontrado`,
+      );
     }
   }
 
@@ -97,10 +127,14 @@ export class AppointmentsService implements OnModuleInit {
       const response = await lastValueFrom(
         this.serviceGrpcService.findOneService({ id: serviceId }),
       );
-      this.logger.log(`gRPC verify OK: service ${response.name} (${response.id}) isActive=${response.isActive}`);
+      this.logger.log(
+        `gRPC verify OK: service ${response.name} (${response.id}) isActive=${response.isActive}`,
+      );
 
       if (!response.isActive) {
-        throw new BadRequestException('El servicio no está disponible (inactivo)');
+        throw new BadRequestException(
+          'El servicio no está disponible (inactivo)',
+        );
       }
 
       return response;
@@ -108,10 +142,22 @@ export class AppointmentsService implements OnModuleInit {
       if (error instanceof BadRequestException) {
         throw error;
       }
-      this.logger.error(`gRPC verify failed for service ${serviceId}: ${error.message}`);
-      const grpcError = error as any;
-      if (grpcError.code === 14 || grpcError.message?.includes('UNAVAILABLE') || grpcError.message?.includes('unavailable')) {
-        throw new BadRequestException('El servicio de catálogo de servicios no está disponible en este momento');
+      this.logger.error(
+        `gRPC verify failed for service ${serviceId}: ${error.message}`,
+      );
+      Sentry.captureException(error, {
+        tags: { service: 'appointments', component: 'grpc' },
+        extra: { operation: 'verifyService', serviceId },
+      });
+      const grpcError = error;
+      if (
+        grpcError.code === 14 ||
+        grpcError.message?.includes('UNAVAILABLE') ||
+        grpcError.message?.includes('unavailable')
+      ) {
+        throw new BadRequestException(
+          'El servicio de catálogo de servicios no está disponible en este momento',
+        );
       }
       throw new NotFoundException(`Servicio con ID ${serviceId} no encontrado`);
     }
@@ -130,9 +176,15 @@ export class AppointmentsService implements OnModuleInit {
       const serviceExists = await this.verifyServiceViaGrpc(dto.serviceId);
 
       // Check overlapping
-      const isAvailable = await this.checkStylistAvailability(dto.stylistId, startTime, endTime);
+      const isAvailable = await this.checkStylistAvailability(
+        dto.stylistId,
+        startTime,
+        endTime,
+      );
       if (!isAvailable) {
-        throw new BadRequestException('Stylist is not available at the requested time slot');
+        throw new BadRequestException(
+          'Stylist is not available at the requested time slot',
+        );
       }
 
       // Create appointment
@@ -173,7 +225,18 @@ export class AppointmentsService implements OnModuleInit {
 
       return saved;
     } catch (error) {
-      this.logger.error(`Error creating appointment: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error creating appointment: ${error.message}`,
+        error.stack,
+      );
+      Sentry.captureException(error, {
+        tags: { service: 'appointments', operation: 'create' },
+        extra: {
+          clientEmail: dto.clientEmail,
+          stylistId: dto.stylistId,
+          serviceId: dto.serviceId,
+        },
+      });
       throw error;
     }
   }
@@ -189,15 +252,23 @@ export class AppointmentsService implements OnModuleInit {
       .createQueryBuilder('appointment')
       .where('appointment.stylistId = :stylistId', { stylistId })
       .andWhere('appointment.status NOT IN (:...excludedStatuses)', {
-        excludedStatuses: [AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW],
+        excludedStatuses: [
+          AppointmentStatus.CANCELLED,
+          AppointmentStatus.NO_SHOW,
+        ],
       })
-      .andWhere('appointment.startTime < :endTime AND appointment.endTime > :startTime', {
-        startTime,
-        endTime,
-      });
+      .andWhere(
+        'appointment.startTime < :endTime AND appointment.endTime > :startTime',
+        {
+          startTime,
+          endTime,
+        },
+      );
 
     if (excludeAppointmentId) {
-      query.andWhere('appointment.id != :excludeAppointmentId', { excludeAppointmentId });
+      query.andWhere('appointment.id != :excludeAppointmentId', {
+        excludeAppointmentId,
+      });
     }
 
     const count = await query.getCount();
@@ -211,19 +282,28 @@ export class AppointmentsService implements OnModuleInit {
         .createQueryBuilder('appointment')
         .leftJoinAndSelect('appointment.stylist', 'stylist')
         .leftJoinAndSelect('appointment.service', 'service')
-        .leftJoinAndSelect('appointment.inventoryConsumption', 'inventoryConsumption')
+        .leftJoinAndSelect(
+          'appointment.inventoryConsumption',
+          'inventoryConsumption',
+        )
         .leftJoinAndSelect('appointment.invoice', 'invoice');
 
       if (filters.status) {
-        query.andWhere('appointment.status = :status', { status: filters.status });
+        query.andWhere('appointment.status = :status', {
+          status: filters.status,
+        });
       }
 
       if (filters.stylistId) {
-        query.andWhere('appointment.stylistId = :stylistId', { stylistId: filters.stylistId });
+        query.andWhere('appointment.stylistId = :stylistId', {
+          stylistId: filters.stylistId,
+        });
       }
 
       if (filters.clientEmail) {
-        query.andWhere('appointment.clientEmail = :clientEmail', { clientEmail: filters.clientEmail });
+        query.andWhere('appointment.clientEmail = :clientEmail', {
+          clientEmail: filters.clientEmail,
+        });
       }
 
       if (filters.date) {
@@ -231,13 +311,21 @@ export class AppointmentsService implements OnModuleInit {
         start.setHours(0, 0, 0, 0);
         const end = new Date(filters.date);
         end.setHours(23, 59, 59, 999);
-        query.andWhere('appointment.startTime BETWEEN :start AND :end', { start, end });
+        query.andWhere('appointment.startTime BETWEEN :start AND :end', {
+          start,
+          end,
+        });
       }
 
       return await query.getMany();
     } catch (error) {
-      this.logger.error(`Error finding appointments: ${error.message}`, error.stack);
-      throw new BadRequestException(`Failed to retrieve appointments: ${error.message}`);
+      this.logger.error(
+        `Error finding appointments: ${error.message}`,
+        error.stack,
+      );
+      throw new BadRequestException(
+        `Failed to retrieve appointments: ${error.message}`,
+      );
     }
   }
 
@@ -255,16 +343,21 @@ export class AppointmentsService implements OnModuleInit {
 
       return appointment;
     } catch (error) {
-      this.logger.error(`Error finding appointment ${id}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error finding appointment ${id}: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
 
   // 4. Update Status (Dispara eventos Redis)
-  async updateStatus(dto: UpdateStatusDto): Promise<{ id: string; status: AppointmentStatus; updatedAt: Date }> {
+  async updateStatus(
+    dto: UpdateStatusDto,
+  ): Promise<{ id: string; status: AppointmentStatus; updatedAt: Date }> {
     try {
       const appointment = await this.findOne(dto.id);
-      
+
       const oldStatus = appointment.status;
       appointment.status = dto.status;
       if (dto.notes) {
@@ -287,7 +380,9 @@ export class AppointmentsService implements OnModuleInit {
             stylistId: updated.stylistId,
             duration: updated.duration,
             startTime: updated.startTime.toISOString(),
-            servicePrice: updated.totalPrice || (updated.service ? Number(updated.service.price) : 0),
+            servicePrice:
+              updated.totalPrice ||
+              (updated.service ? Number(updated.service.price) : 0),
           });
         } else if (dto.status === AppointmentStatus.CANCELLED) {
           await this.eventsService.publish('appointment.cancelled', {
@@ -302,26 +397,40 @@ export class AppointmentsService implements OnModuleInit {
         updatedAt: updated.updatedAt,
       };
     } catch (error) {
-      this.logger.error(`Error updating status for appointment ${dto.id}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error updating status for appointment ${dto.id}: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
 
   // 5. Validar Disponibilidad
-  async checkAvailability(dto: CheckAvailabilityDto): Promise<{ available: boolean; conflicts?: Appointment[] }> {
+  async checkAvailability(
+    dto: CheckAvailabilityDto,
+  ): Promise<{ available: boolean; conflicts?: Appointment[] }> {
     try {
       const startTime = new Date(dto.startTime);
       const endTime = new Date(startTime.getTime() + dto.duration * 60000);
 
-      const conflicts = await this.appointmentRepository.createQueryBuilder('appointment')
-        .where('appointment.stylistId = :stylistId', { stylistId: dto.stylistId })
+      const conflicts = await this.appointmentRepository
+        .createQueryBuilder('appointment')
+        .where('appointment.stylistId = :stylistId', {
+          stylistId: dto.stylistId,
+        })
         .andWhere('appointment.status NOT IN (:...excludedStatuses)', {
-          excludedStatuses: [AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW],
+          excludedStatuses: [
+            AppointmentStatus.CANCELLED,
+            AppointmentStatus.NO_SHOW,
+          ],
         })
-        .andWhere('appointment.startTime < :endTime AND appointment.endTime > :startTime', {
-          startTime,
-          endTime,
-        })
+        .andWhere(
+          'appointment.startTime < :endTime AND appointment.endTime > :startTime',
+          {
+            startTime,
+            endTime,
+          },
+        )
         .getMany();
 
       return {
@@ -329,18 +438,27 @@ export class AppointmentsService implements OnModuleInit {
         conflicts: conflicts.length > 0 ? conflicts : undefined,
       };
     } catch (error) {
-      this.logger.error(`Error checking availability: ${error.message}`, error.stack);
-      throw new BadRequestException(`Failed to check availability: ${error.message}`);
+      this.logger.error(
+        `Error checking availability: ${error.message}`,
+        error.stack,
+      );
+      throw new BadRequestException(
+        `Failed to check availability: ${error.message}`,
+      );
     }
   }
 
   // 6. Reprogramar Cita
-  async reschedule(dto: RescheduleDto): Promise<{ id: string; startTime: Date; endTime: Date }> {
+  async reschedule(
+    dto: RescheduleDto,
+  ): Promise<{ id: string; startTime: Date; endTime: Date }> {
     try {
       const appointment = await this.findOne(dto.id);
-      
+
       const newStartTime = new Date(dto.newStartTime);
-      const newEndTime = new Date(newStartTime.getTime() + appointment.duration * 60000);
+      const newEndTime = new Date(
+        newStartTime.getTime() + appointment.duration * 60000,
+      );
 
       const isAvailable = await this.checkStylistAvailability(
         appointment.stylistId,
@@ -350,12 +468,14 @@ export class AppointmentsService implements OnModuleInit {
       );
 
       if (!isAvailable) {
-        throw new BadRequestException('Stylist is not available at the new requested time slot');
+        throw new BadRequestException(
+          'Stylist is not available at the new requested time slot',
+        );
       }
 
       appointment.startTime = newStartTime;
       appointment.endTime = newEndTime;
-      
+
       const updated = await this.appointmentRepository.save(appointment);
 
       return {
@@ -364,19 +484,24 @@ export class AppointmentsService implements OnModuleInit {
         endTime: updated.endTime,
       };
     } catch (error) {
-      this.logger.error(`Error rescheduling appointment ${dto.id}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error rescheduling appointment ${dto.id}: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
 
   // 7. Cancelar Cita
-  async cancel(dto: CancelAppointmentDto): Promise<{ id: string; status: AppointmentStatus }> {
+  async cancel(
+    dto: CancelAppointmentDto,
+  ): Promise<{ id: string; status: AppointmentStatus }> {
     try {
       const appointment = await this.findOne(dto.id);
-      
+
       appointment.status = AppointmentStatus.CANCELLED;
       if (dto.reason) {
-        appointment.notes = appointment.notes 
+        appointment.notes = appointment.notes
           ? `${appointment.notes} | Cancel reason: ${dto.reason}`
           : `Cancel reason: ${dto.reason}`;
       }
@@ -393,13 +518,19 @@ export class AppointmentsService implements OnModuleInit {
         status: updated.status,
       };
     } catch (error) {
-      this.logger.error(`Error cancelling appointment ${dto.id}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error cancelling appointment ${dto.id}: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
 
   // 8. Agenda diaria de un estilista
-  async getByStylist(stylistId: string, dateStr: string): Promise<Appointment[]> {
+  async getByStylist(
+    stylistId: string,
+    dateStr: string,
+  ): Promise<Appointment[]> {
     try {
       const start = new Date(dateStr);
       start.setHours(0, 0, 0, 0);
@@ -414,8 +545,13 @@ export class AppointmentsService implements OnModuleInit {
         order: { startTime: 'ASC' },
       });
     } catch (error) {
-      this.logger.error(`Error getting appointments by stylist: ${error.message}`, error.stack);
-      throw new BadRequestException(`Failed to retrieve stylist agenda: ${error.message}`);
+      this.logger.error(
+        `Error getting appointments by stylist: ${error.message}`,
+        error.stack,
+      );
+      throw new BadRequestException(
+        `Failed to retrieve stylist agenda: ${error.message}`,
+      );
     }
   }
 
@@ -428,22 +564,35 @@ export class AppointmentsService implements OnModuleInit {
         order: { startTime: 'DESC' },
       });
     } catch (error) {
-      this.logger.error(`Error getting appointments by client: ${error.message}`, error.stack);
-      throw new BadRequestException(`Failed to retrieve client history: ${error.message}`);
+      this.logger.error(
+        `Error getting appointments by client: ${error.message}`,
+        error.stack,
+      );
+      throw new BadRequestException(
+        `Failed to retrieve client history: ${error.message}`,
+      );
     }
   }
 
   // 10. Huecos libres de un estilista
-  async getAvailableSlots(stylistId: string, dateStr: string, serviceId?: string): Promise<{ startTime: Date; endTime: Date }[]> {
+  async getAvailableSlots(
+    stylistId: string,
+    dateStr: string,
+    serviceId?: string,
+  ): Promise<{ startTime: Date; endTime: Date }[]> {
     try {
-      const stylist = await this.stylistRepository.findOne({ where: { id: stylistId } });
+      const stylist = await this.stylistRepository.findOne({
+        where: { id: stylistId },
+      });
       if (!stylist) {
         throw new NotFoundException(`Stylist with ID ${stylistId} not found`);
       }
 
       let duration = 30; // default
       if (serviceId) {
-        const service = await this.serviceRepository.findOne({ where: { id: serviceId } });
+        const service = await this.serviceRepository.findOne({
+          where: { id: serviceId },
+        });
         if (service) {
           duration = service.duration;
         }
@@ -461,7 +610,9 @@ export class AppointmentsService implements OnModuleInit {
       };
 
       const dateObj = new Date(dateStr);
-      const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+      const dayName = dateObj
+        .toLocaleDateString('en-US', { weekday: 'long' })
+        .toLowerCase();
       const timeRange = workingHours[dayName];
 
       if (!timeRange) {
@@ -487,7 +638,9 @@ export class AppointmentsService implements OnModuleInit {
       const appointments = await this.appointmentRepository.find({
         where: {
           stylistId,
-          status: Not(In([AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW])),
+          status: Not(
+            In([AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW]),
+          ),
           startTime: Between(dayStart, dayEnd),
         },
       });
@@ -514,7 +667,10 @@ export class AppointmentsService implements OnModuleInit {
 
       return slots;
     } catch (error) {
-      this.logger.error(`Error calculating available slots: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error calculating available slots: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }

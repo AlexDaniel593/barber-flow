@@ -1,4 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { Appointment } from './appointment.entity';
 
 @Entity('inventory_consumptions')
@@ -15,7 +21,10 @@ export class InventoryConsumption {
   @Column({ type: 'uuid', nullable: true })
   appointmentId?: string;
 
-  @ManyToOne(() => Appointment, (appointment) => appointment.inventoryConsumption)
+  @ManyToOne(
+    () => Appointment,
+    (appointment) => appointment.inventoryConsumption,
+  )
   @JoinColumn({ name: 'appointmentId' })
   appointment?: Appointment;
 }

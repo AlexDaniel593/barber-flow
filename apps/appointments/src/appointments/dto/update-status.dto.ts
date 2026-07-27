@@ -1,4 +1,10 @@
-import { IsUUID, IsEnum, IsOptional, IsString, IsNotEmpty } from 'class-validator';
+import {
+  IsUUID,
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsNotEmpty,
+} from 'class-validator';
 import { AppointmentStatus } from '../entities/appointment.entity';
 
 export class UpdateStatusDto {

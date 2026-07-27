@@ -1,6 +1,9 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { AppointmentsService, StylistGrpcResponse } from './appointments.service';
+import {
+  AppointmentsService,
+  StylistGrpcResponse,
+} from './appointments.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { FindAppointmentsDto } from './dto/find-appointments.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
@@ -49,7 +52,10 @@ export class AppointmentsController {
 
   @MessagePattern({ cmd: 'appointments.getByStylist' })
   async getByStylist(@Payload() data: { stylistId: string; date: string }) {
-    return await this.appointmentsService.getByStylist(data.stylistId, data.date);
+    return await this.appointmentsService.getByStylist(
+      data.stylistId,
+      data.date,
+    );
   }
 
   @MessagePattern({ cmd: 'appointments.getByClient' })
@@ -58,8 +64,14 @@ export class AppointmentsController {
   }
 
   @MessagePattern({ cmd: 'appointments.getAvailableSlots' })
-  async getAvailableSlots(@Payload() data: { stylistId: string; date: string; serviceId?: string }) {
-    return await this.appointmentsService.getAvailableSlots(data.stylistId, data.date, data.serviceId);
+  async getAvailableSlots(
+    @Payload() data: { stylistId: string; date: string; serviceId?: string },
+  ) {
+    return await this.appointmentsService.getAvailableSlots(
+      data.stylistId,
+      data.date,
+      data.serviceId,
+    );
   }
 
   @MessagePattern({ cmd: 'appointments.verifyStylistGrpc' })

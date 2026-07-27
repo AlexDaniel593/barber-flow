@@ -5,6 +5,9 @@ import * as fs from 'fs';
 import { join } from 'path';
 import { AppModule } from './app.module';
 import { RpcExceptionFilter } from './shared/filters/rpc-exception.filter';
+import { initSentry } from './sentry.config';
+
+initSentry();
 
 const getProtoPath = () => {
   const paths = [

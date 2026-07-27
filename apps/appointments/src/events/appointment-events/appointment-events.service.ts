@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { createClient, RedisClientType } from 'redis';
 
 @Injectable()
@@ -8,7 +13,7 @@ export class AppointmentEventsService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     const url = `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || 6379}`;
-    this.publisher = createClient({ url }) as RedisClientType;
+    this.publisher = createClient({ url });
 
     this.publisher.on('error', (error) =>
       this.logger.error(`Redis publisher error: ${error.message}`, error.stack),
