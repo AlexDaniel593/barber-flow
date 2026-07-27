@@ -27,8 +27,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
       } else if (typeof exceptionResponse === 'object') {
         message = (exceptionResponse as any).message || exception.message;
       }
-    } else if (exception instanceof Error) {
-      message = exception.message;
+    } else if (
+      exception &&
+      typeof exception === 'object' &&
+      typeof (exception as any).statusCode === 'number'
+    ) {
+      // Error serializado por un filtro RPC de un microservicio (ver rpc-exception.filter.ts)
+      statusCode = (exception as any).statusCode;
+      message = (exception as any).message || message;
     }
 
     if (statusCode >= 500) {
