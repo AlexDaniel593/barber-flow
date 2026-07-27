@@ -1,34 +1,39 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body } from '@nestjs/common';
 import { StylistsService } from './stylists.service';
 import { CreateStylistDto } from './dto/create-stylist.dto';
 import { UpdateStylistDto } from './dto/update-stylist.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles } from '../auth/roles.decorator';
+import { UserRole } from '../users/user.entity';
 
-@UseGuards(JwtAuthGuard)
 @Controller('stylists')
 export class StylistsController {
   constructor(private readonly stylistsService: StylistsService) {}
 
+  @Roles(UserRole.ADMIN)
   @Post()
   create(@Body() dto: CreateStylistDto) {
     return this.stylistsService.create(dto);
   }
 
+  @Roles(UserRole.CLIENT, UserRole.ADMIN)
   @Get()
   findAll() {
     return this.stylistsService.findAll();
   }
 
+  @Roles(UserRole.CLIENT, UserRole.ADMIN)
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.stylistsService.findOne(id);
   }
 
+  @Roles(UserRole.ADMIN)
   @Put(':id')
   update(@Param('id') id: string, @Body() dto: UpdateStylistDto) {
     return this.stylistsService.update(id, dto);
   }
 
+  @Roles(UserRole.ADMIN)
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.stylistsService.remove(id);

@@ -332,7 +332,13 @@ export class AppointmentsService implements OnModuleInit {
   // 6. Reprogramar Cita
   async reschedule(dto: RescheduleDto): Promise<{ id: string; startTime: Date; endTime: Date }> {
     try {
-      const appointment = await this.findOne(dto.id);
+      const appointment = dto.clientEmail
+        ? await this.appointmentRepository.findOne({ where: { id: dto.id, clientEmail: dto.clientEmail } })
+        : await this.findOne(dto.id);
+
+      if (!appointment) {
+        throw new NotFoundException(`Appointment with ID ${dto.id} not found`);
+      }
       
       const newStartTime = new Date(dto.newStartTime);
       const newEndTime = new Date(newStartTime.getTime() + appointment.duration * 60000);
@@ -367,7 +373,13 @@ export class AppointmentsService implements OnModuleInit {
   // 7. Cancelar Cita
   async cancel(dto: CancelAppointmentDto): Promise<{ id: string; status: AppointmentStatus }> {
     try {
-      const appointment = await this.findOne(dto.id);
+      const appointment = dto.clientEmail
+        ? await this.appointmentRepository.findOne({ where: { id: dto.id, clientEmail: dto.clientEmail } })
+        : await this.findOne(dto.id);
+
+      if (!appointment) {
+        throw new NotFoundException(`Appointment with ID ${dto.id} not found`);
+      }
       
       appointment.status = AppointmentStatus.CANCELLED;
       if (dto.reason) {

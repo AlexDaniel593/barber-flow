@@ -1,4 +1,4 @@
-import { IsUUID, IsNotEmpty, IsDateString } from 'class-validator';
+import { IsUUID, IsNotEmpty, IsDateString, IsEmail, IsOptional } from 'class-validator';
 
 export class RescheduleDto {
   @IsUUID()
@@ -8,4 +8,8 @@ export class RescheduleDto {
   @IsDateString()
   @IsNotEmpty()
   newStartTime: string;
+
+  @IsEmail()
+  @IsOptional()
+  clientEmail?: string;
 }

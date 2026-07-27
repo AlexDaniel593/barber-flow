@@ -76,6 +76,15 @@ services:
     ports:
       - "3002:3002"
       - "50051:50051"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"const net=require('net'); const ports=[3002,50051]; let pending=ports.length; let failed=false; const done=(ok)=>{ if(!ok) failed=true; if(--pending===0) process.exit(failed ? 1 : 0); }; ports.forEach((port)=>{ const socket=net.createConnection({host:'127.0.0.1',port},()=>{ socket.end(); done(true); }); socket.on('error',()=>done(false)); socket.setTimeout(2000,()=>{ socket.destroy(); done(false); }); });\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - barber-flow-network
 
@@ -107,6 +116,15 @@ services:
     restart: unless-stopped
     ports:
       - "3001:3001"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"const net=require('net'); const socket=net.createConnection({host:'127.0.0.1',port:3001},()=>{ socket.end(); process.exit(0); }); socket.on('error',()=>process.exit(1)); socket.setTimeout(2000,()=>{ socket.destroy(); process.exit(1); });\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - barber-flow-network
 
@@ -133,10 +151,19 @@ services:
       rabbitmq:
         condition: service_healthy
       services-staff:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
     ports:
       - "3003:3003"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"const net=require('net'); const socket=net.createConnection({host:'127.0.0.1',port:3003},()=>{ socket.end(); process.exit(0); }); socket.on('error',()=>process.exit(1)); socket.setTimeout(2000,()=>{ socket.destroy(); process.exit(1); });\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - barber-flow-network
 
@@ -149,6 +176,9 @@ services:
     environment:
       PORT: 3000
       JWT_SECRET: ${JWT_SECRET}
+      ADMIN_BOOTSTRAP_EMAIL: ${ADMIN_BOOTSTRAP_EMAIL:-}
+      ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:-}
+      ADMIN_BOOTSTRAP_NAME: ${ADMIN_BOOTSTRAP_NAME:-Administrador}
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USERNAME: ${POSTGRES_USER:-postgres}
@@ -166,12 +196,21 @@ services:
       postgres:
         condition: service_healthy
       services-staff:
-        condition: service_started
+        condition: service_healthy
       appointments:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - barber-flow-network
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"const url='http://127.0.0.1:3000/api/health'; fetch(url).then((res)=>process.exit(res.ok ? 0 : 1)).catch(()=>process.exit(1));\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres-data:

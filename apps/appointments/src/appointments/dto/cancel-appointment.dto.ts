@@ -1,4 +1,4 @@
-import { IsUUID, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsUUID, IsNotEmpty, IsOptional, IsString, IsEmail } from 'class-validator';
 
 export class CancelAppointmentDto {
   @IsUUID()
@@ -8,4 +8,8 @@ export class CancelAppointmentDto {
   @IsString()
   @IsOptional()
   reason?: string;
+
+  @IsEmail()
+  @IsOptional()
+  clientEmail?: string;
 }
