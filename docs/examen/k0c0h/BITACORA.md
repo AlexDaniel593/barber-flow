@@ -12,7 +12,7 @@
 | **Actividad asignada** | Actividad B — Nuevo salto síncrono con contrato |
 | **Rama** | `exam/k0c0h` |
 | **Tag** | `examen-k0c0h` |
-| **Pull Request** |  |
+| **Pull Request** | https://github.com/AlexDaniel593/barber-flow/pull/75 |
 | **Tarjeta Kanban** | https://github.com/users/AlexDaniel593/projects/1/views/1?pane=issue&itemId=219052171&issue=AlexDaniel593%7Cbarber-flow%7C73 |
 | **¿Hiciste el Paso 0?** | No — La base de gRPC y contratos proto ya existía en el archivo `apps/proto/barber.proto`. |
 
@@ -93,6 +93,10 @@ Al principio me sugería usar excepciones de HTTP (`NotFoundException`) directam
 | `docs/examen/k0c0h/antes-sin-metodo.txt` | Muestra que antes de mi cambio no existía la consulta de horarios en el archivo `.proto` ni en la puerta de enlace. |
 | `docs/examen/k0c0h/despues-caso-ok.txt` | Muestra el resultado de la consulta exitosa devolviendo el estado 200 con el horario y especialidades del estilista. |
 | `docs/examen/k0c0h/despues-caso-error.txt` | Demuestra cómo los errores de estilista no encontrado devuelven estado 404 y los de ID vacío devuelven estado 400. |
+| `docs/examen/k0c0h/Captura de pantalla 2026-07-27 085101.png` | Captura del tablero Kanban en GitHub Projects con la tarjeta movida a Hecho. |
+
+TABLERO KANBAN KERLLY CHIRIBOGA
+![Tablero Kanban Kerlly Chiriboga](./Captura%20de%20pantalla%202026-07-27%20085101.png)
 
 **Cómo reproducir mi cambio desde cero:**
 

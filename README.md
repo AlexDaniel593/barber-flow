@@ -463,6 +463,6 @@ Endpoint de verificación: `GET /api/health` muestra el estado de Sentry (`enabl
 ### Examen final — Kerlly Chiriboga
 - **Actividad:** Actividad B — Nuevo salto síncrono con contrato
 - **Bitácora:** [BITACORA.md](docs/examen/k0c0h/BITACORA.md)
-- **Pull Request:** [PR #70](https://github.com/AlexDaniel593/barber-flow/pull/70)
+- **Pull Request:** [PR #75](https://github.com/AlexDaniel593/barber-flow/pull/75)
 - **Tag:** `examen-k0c0h`
 
