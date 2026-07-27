@@ -1,12 +1,14 @@
-import { Controller } from '@nestjs/common';
+import { Controller, UseFilters } from '@nestjs/common';
 import { GrpcMethod, RpcException } from '@nestjs/microservices';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { status } from '@grpc/grpc-js';
 import { StylistsService } from './stylists.service';
 import { CreateStylistDto } from './dto/create-stylist.dto';
 import { UpdateStylistDto } from './dto/update-stylist.dto';
+import { RpcExceptionFilter } from '../shared/filters/rpc-exception.filter';
 
 @Controller()
+@UseFilters(RpcExceptionFilter)
 export class StylistsController {
   constructor(private readonly stylistsService: StylistsService) {}
 
