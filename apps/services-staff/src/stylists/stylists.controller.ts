@@ -29,6 +29,44 @@ export class StylistsController {
     }
   }
 
+  /**
+   * Nuevo salto síncrono — Actividad B (examen)
+   * Consulta que hoy NO existía: obtener horario de trabajo + especialidades
+   * de un estilista directamente desde el propietario del dato (services-staff),
+   * sin que appointments duplique la lógica de parsing de workingHours.
+   *
+   * Anclaje: extiende el contrato en apps/proto/barber.proto (StylistService)
+   * siguiendo el mismo patrón de FindOneStylist (líneas 13-30 de este archivo).
+   */
+  @GrpcMethod('StylistService', 'GetStylistWorkingHours')
+  async getStylistWorkingHours(data: { id: string }) {
+    // Validación de entrada: id vacío o ausente → INVALID_ARGUMENT → 400 en Gateway
+    if (!data.id || data.id.trim() === '') {
+      throw new RpcException({
+        code: status.INVALID_ARGUMENT,
+        message: 'El campo id es requerido y no puede estar vacío',
+      });
+    }
+    try {
+      const stylist = await this.stylistsService.findOne(data.id);
+      return {
+        id: stylist.id,
+        name: stylist.name,
+        isActive: stylist.isActive,
+        workingHours: JSON.stringify(stylist.workingHours ?? {}),
+        specialties: stylist.specialties ?? [],
+      };
+    } catch (error) {
+      // Re-lanzar RpcException sin envolver (ej: INVALID_ARGUMENT ya lanzado)
+      if (error instanceof RpcException) throw error;
+      // Recurso no encontrado → NOT_FOUND → 404 en Gateway
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: `Estilista con ID ${data.id} no encontrado`,
+      });
+    }
+  }
+
   @MessagePattern({ cmd: 'stylists.create' })
   async create(@Payload() createStylistDto: CreateStylistDto) {
     return await this.stylistsService.create(createStylistDto);
