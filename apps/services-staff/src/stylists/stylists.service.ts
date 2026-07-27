@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Stylist } from './entities/stylist.entity';
@@ -42,7 +42,7 @@ export class StylistsService {
         relations: ['services'],
       });
       if (!stylist) {
-        throw new Error(`Stylist with ID ${id} not found`);
+        throw new NotFoundException(`Stylist with ID ${id} not found`);
       }
       return stylist;
     } catch (error) {
