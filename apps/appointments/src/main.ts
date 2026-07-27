@@ -3,6 +3,9 @@ import { Transport, MicroserviceOptions } from '@nestjs/microservices';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { RpcExceptionFilter } from './shared/filters/rpc-exception.filter';
+import { initSentry } from './sentry.config';
+
+initSentry();
 
 async function bootstrap() {
   // Patrón híbrido: aplicación HTTP + microservicio TCP

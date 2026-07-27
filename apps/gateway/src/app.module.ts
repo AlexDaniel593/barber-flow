@@ -7,7 +7,7 @@ import { InvoicesModule } from './invoices/invoices.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { UsersModule } from './users/users.module';
 import { User } from './users/user.entity';
-import { HealthController } from './health.controller';
+import { HealthModule } from './health/health.module';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { RolesGuard } from './auth/roles.guard';
@@ -30,8 +30,9 @@ import { RolesGuard } from './auth/roles.guard';
     AuthModule,
     InvoicesModule,
     AppointmentsModule,
+    HealthModule,
   ],
-  controllers: [HealthController],
+  controllers: [],
   providers: [
     {
       provide: APP_GUARD,

@@ -6,6 +6,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import * as Sentry from '@sentry/node';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -28,6 +29,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
       }
     } else if (exception instanceof Error) {
       message = exception.message;
+    }
+
+    if (statusCode >= 500) {
+      Sentry.withScope((scope) => {
+        scope.setTag('service', 'gateway');
+        scope.setTag('path', request.url);
+        scope.setContext('request', {
+          method: request.method,
+          url: request.url,
+          headers: request.headers,
+        });
+        Sentry.captureException(exception);
+      });
     }
 
     response.status(statusCode).json({
