@@ -10,8 +10,8 @@
 | **Usuario GitHub** | @Reishel-Tipan |
 | **Grupo / Proyecto** | Grupo 2 — Barber-Flow (`AlexDaniel593/barber-flow`) |
 | **Actividad asignada** | E — Filtro de excepciones y mapeo de códigos |
-| **Rama** | `exam/Reishel-Tipan` |
-| **Tag** | `examen-Reishel-Tipan` *(pendiente de crear al cierre)* |
+| **Rama** | [`exam/Reishel-Tipan`](https://github.com/AlexDaniel593/barber-flow/tree/exam/Reishel-Tipan) |
+| **Tag** | [`examen-Reishel-Tipan`](https://github.com/AlexDaniel593/barber-flow/releases/tag/examen-Reishel-Tipan) |
 | **Pull Request** | https://github.com/AlexDaniel593/barber-flow/pull/77 |
 | **Tarjeta Kanban** | https://github.com/users/AlexDaniel593/projects/1/views/1?pane=issue&itemId=219050457&issue=AlexDaniel593%7Cbarber-flow%7C72 |
 | **¿Hiciste el Paso 0?** | No aplica — la actividad E no tiene prerrequisito de Avance 3 (no requiere JWT ni Sentry como base). |
