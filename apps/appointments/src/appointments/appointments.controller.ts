@@ -66,4 +66,15 @@ export class AppointmentsController {
   async verifyStylistGrpc(@Payload() data: { id: string }) {
     return await this.appointmentsService.verifyStylistViaGrpc(data.id);
   }
+
+  /**
+   * Actividad B — Nuevo endpoint expuesto por el microservicio de appointments.
+   * Permite obtener horario de trabajo + especialidades de un estilista
+   * a través del nuevo salto síncrono: appointments (TCP) → services-staff (gRPC).
+   * Anclaje: usa getStylistWorkingHoursViaGrpc() en appointments.service.ts.
+   */
+  @MessagePattern({ cmd: 'appointments.getStylistWorkingHours' })
+  async getStylistWorkingHours(@Payload() data: { stylistId: string }) {
+    return await this.appointmentsService.getStylistWorkingHoursViaGrpc(data.stylistId);
+  }
 }

@@ -21,6 +21,19 @@ export class StylistsController {
     return this.stylistsService.findAll();
   }
 
+  /**
+   * Actividad B — Nuevo endpoint HTTP del Gateway.
+   * GET /stylists/:id/working-hours
+   * Cadena: Gateway (HTTP) → services-staff (TCP) → devuelve workingHours + specialties.
+   * Anclaje: llama a getStylistWorkingHours() en stylists.service.ts del Gateway,
+   * que a su vez usa this.client.send con cmd 'stylists.getStylistWorkingHours'.
+   */
+  @Roles(UserRole.CLIENT, UserRole.ADMIN)
+  @Get(':id/working-hours')
+  getStylistWorkingHours(@Param('id') id: string) {
+    return this.stylistsService.getStylistWorkingHours(id);
+  }
+
   @Roles(UserRole.CLIENT, UserRole.ADMIN)
   @Get(':id')
   findOne(@Param('id') id: string) {

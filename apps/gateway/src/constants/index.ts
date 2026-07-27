@@ -16,6 +16,7 @@ export const stylistsMessagePatterns = {
   FIND_ONE: 'stylists.findOne',
   UPDATE: 'stylists.update',
   REMOVE: 'stylists.remove',
+  GET_WORKING_HOURS: 'stylists.getStylistWorkingHours', // Actividad B — nuevo salto síncrono
 };
 
 export const invoicesMessagePatterns = {

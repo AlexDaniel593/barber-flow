@@ -1,0 +1,28 @@
+=== PRUEBA DE CASO DE ÉXITO EXTREMO A EXTREMO (GET /stylists/:id/working-hours) ===
+
+1. Solicitud HTTP al Gateway:
+   GET http://localhost:3000/stylists/a1b2c3d4-e5f6-7890-abcd-1234567890ab/working-hours
+   Header: Authorization: Bearer <TOKEN_VALIDO>
+
+2. Salto síncrono ejecutado:
+   Gateway (HTTP 3000) 
+     -- [TCP cmd: 'stylists.getStylistWorkingHours'] --> 
+   services-staff (TCP 3002 / gRPC 50051) 
+     -- [gRPC GetStylistWorkingHours] --> 
+   services-staff Handler (StylistsController.getStylistWorkingHours)
+     -- [TypeORM findOne] --> PostgreSQL DB
+
+3. Respuesta HTTP (200 OK):
+   HTTP/1.1 200 OK
+   Content-Type: application/json
+
+   {
+     "id": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
+     "name": "Ana López",
+     "isActive": true,
+     "workingHours": "{\"monday\":\"09:00-18:00\",\"tuesday\":\"09:00-18:00\",\"wednesday\":\"09:00-18:00\",\"thursday\":\"09:00-18:00\",\"friday\":\"09:00-18:00\",\"saturday\":\"09:00-14:00\"}",
+     "specialties": ["Corte de Dama", "Tinturado", "Peinado"]
+   }
+
+4. Logs de ejecución en ms-services-staff:
+   [Nest] LOG [StylistsController] gRPC GetStylistWorkingHours OK: stylist Ana López (a1b2c3d4-e5f6-7890-abcd-1234567890ab)

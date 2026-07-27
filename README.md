@@ -457,3 +457,12 @@ Endpoint de verificación: `GET /api/health` muestra el estado de Sentry (`enabl
 
 ## 🏷️ Tags de entrega
 - `v1-avance1` — 15-07-2026 · `v2-avance2` — 18-07-2026 · `v3-final` — 22-07-2026
+
+---
+
+### Examen final — Kerlly Chiriboga
+- **Actividad:** Actividad B — Nuevo salto síncrono con contrato
+- **Bitácora:** [BITACORA.md](docs/examen/k0c0h/BITACORA.md)
+- **Pull Request:** [PR #75](https://github.com/AlexDaniel593/barber-flow/pull/75)
+- **Tag:** `examen-k0c0h`
+

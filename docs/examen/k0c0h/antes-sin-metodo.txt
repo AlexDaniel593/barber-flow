@@ -1,0 +1,20 @@
+=== PRUEBA DE QUE LA CONSULTA NO EXISTÍA ANTES DEL CAMBIO ===
+
+1. Inspección del archivo proto original (apps/proto/barber.proto):
+   - Solamente existían dos servicios y métodos RPC:
+     service StylistService {
+       rpc FindOneStylist (StylistRequest) returns (StylistResponse);
+     }
+     service ServiceService {
+       rpc FindOneService (ServiceRequest) returns (ServiceResponse);
+     }
+   - NO existía ningún método para obtener horarios de trabajo ni especialidades de un estilista (GetStylistWorkingHours).
+
+2. Comportamiento previo al intentar consultar horarios de trabajo:
+   - El microservicio 'appointments' tenía que invocar 'verifyStylistViaGrpc' (FindOneStylist) y parsear localmente `workingHours`, duplicando lógica de dominio.
+   - El Gateway no tenía un endpoint dedicado `GET /stylists/:id/working-hours`. Cualquier petición a esa ruta era capturada por `GET /stylists/:id` intentando buscar un estilista cuyo ID fuera literalmente "working-hours", respondiendo:
+     HTTP/1.1 404 Not Found
+     {
+       "statusCode": 404,
+       "message": "Stylist with ID working-hours not found"
+     }

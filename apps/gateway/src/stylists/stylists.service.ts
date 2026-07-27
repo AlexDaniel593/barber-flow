@@ -1,4 +1,4 @@
-import { Injectable, OnApplicationBootstrap, Logger } from '@nestjs/common';
+import { Injectable, OnApplicationBootstrap, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ClientProxy, ClientProxyFactory, Transport } from '@nestjs/microservices';
 import { lastValueFrom } from 'rxjs';
 import { stylistsMessagePatterns } from '../constants';
@@ -49,5 +49,30 @@ export class StylistsService implements OnApplicationBootstrap {
 
   async remove(id: string) {
     return lastValueFrom(this.client.send({ cmd: stylistsMessagePatterns.REMOVE }, { id }));
+  }
+
+  /**
+   * Actividad B — Nuevo método en el Gateway que expone el salto síncrono.
+   * Ruta HTTP: GET /stylists/:id/working-hours
+   * Traduce errores del transporte TCP+gRPC al código HTTP correcto:
+   *   - NOT_FOUND  → 404  (estilista no existe)
+   *   - INVALID_ARGUMENT → 400 (id vacío o inválido)
+   * Anclaje: usa el mismo this.client (TCP a services-staff:3002) de línea 14.
+   */
+  async getStylistWorkingHours(stylistId: string) {
+    try {
+      return await lastValueFrom(
+        this.client.send({ cmd: stylistsMessagePatterns.GET_WORKING_HOURS }, { id: stylistId }),
+      );
+    } catch (error) {
+      const msg: string = error?.message ?? '';
+      if (msg.includes('no encontrado') || msg.includes('not found')) {
+        throw new NotFoundException(`Estilista con ID ${stylistId} no encontrado`);
+      }
+      if (msg.includes('requerido') || msg.includes('inválido') || msg.includes('empty')) {
+        throw new BadRequestException('El id del estilista no puede estar vacío');
+      }
+      throw error;
+    }
   }
 }

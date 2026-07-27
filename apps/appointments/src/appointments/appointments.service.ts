@@ -23,6 +23,20 @@ export interface StylistGrpcResponse {
 
 interface StylistGrpcService {
   findOneStylist(data: { id: string }): Observable<StylistGrpcResponse>;
+  getStylistWorkingHours(data: { id: string }): Observable<StylistWorkingHoursGrpcResponse>;
+}
+
+/**
+ * Actividad B — Nuevo salto síncrono con contrato.
+ * Tipo de respuesta del nuevo método RPC GetStylistWorkingHours
+ * definido en apps/proto/barber.proto (StylistWorkingHoursResponse).
+ */
+export interface StylistWorkingHoursGrpcResponse {
+  id: string;
+  name: string;
+  isActive: boolean;
+  workingHours: string; // JSON serializado del schedule
+  specialties: string[];
 }
 
 export interface ServiceGrpcResponse {
@@ -82,6 +96,40 @@ export class AppointmentsService implements OnModuleInit {
       if (grpcError.code === 14 || grpcError.message?.includes('UNAVAILABLE') || grpcError.message?.includes('unavailable')) {
         throw new BadRequestException('El servicio de estilistas no está disponible en este momento');
       }
+      throw new NotFoundException(`Estilista con ID ${stylistId} no encontrado`);
+    }
+  }
+
+  /**
+   * Actividad B — Consumidor del nuevo salto síncrono.
+   * Llama a GetStylistWorkingHours en services-staff (propietario del dato).
+   * Anclaje: usa el cliente grpcClient registrado como 'STYLIST_GRPC_PACKAGE'
+   * en appointments.module.ts:36 y el canal onModuleInit() a línea 57-61.
+   *
+   * Traduce errores gRPC al código HTTP correcto (no 500):
+   *   - code 5 (NOT_FOUND)       → NotFoundException → 404
+   *   - code 3 (INVALID_ARGUMENT) → BadRequestException → 400
+   *   - code 14 (UNAVAILABLE)    → BadRequestException → 503 (servicio caído)
+   */
+  async getStylistWorkingHoursViaGrpc(stylistId: string): Promise<StylistWorkingHoursGrpcResponse> {
+    try {
+      const response = await lastValueFrom(
+        this.stylistGrpcService.getStylistWorkingHours({ id: stylistId }),
+      );
+      this.logger.log(`gRPC GetStylistWorkingHours OK: stylist ${response.name} (${response.id})`);
+      return response;
+    } catch (error) {
+      this.logger.error(`gRPC GetStylistWorkingHours failed for stylist ${stylistId}: ${error.message}`);
+      const grpcError = error as any;
+      // Servicio caído
+      if (grpcError.code === 14 || grpcError.message?.includes('UNAVAILABLE')) {
+        throw new BadRequestException('El servicio de estilistas no está disponible en este momento');
+      }
+      // Argumento inválido (id vacío enviado desde Gateway)
+      if (grpcError.code === 3) {
+        throw new BadRequestException('El id del estilista no puede estar vacío');
+      }
+      // Recurso no encontrado
       throw new NotFoundException(`Estilista con ID ${stylistId} no encontrado`);
     }
   }
@@ -442,7 +490,11 @@ export class AppointmentsService implements OnModuleInit {
   // 10. Huecos libres de un estilista
   async getAvailableSlots(stylistId: string, dateStr: string, serviceId?: string): Promise<{ startTime: Date; endTime: Date }[]> {
     try {
-      const stylist = await this.verifyStylistViaGrpc(stylistId);
+      // Actividad B: usa el nuevo salto síncrono GetStylistWorkingHours
+      // que devuelve workingHours + specialties en un solo RPC,
+      // sin duplicar datos en appointments ni llamar a FindOneStylist por separado.
+      const stylist = await this.getStylistWorkingHoursViaGrpc(stylistId);
+
 
       let duration = 30; // default
       if (serviceId) {
