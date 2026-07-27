@@ -3,6 +3,7 @@ import * as amqp from 'amqp-connection-manager';
 import { ChannelWrapper } from 'amqp-connection-manager';
 import { ConsumeMessage, ConfirmChannel } from 'amqplib';
 import { InventoryService } from '../../inventory/inventory.service';
+import * as Sentry from '@sentry/node';
 
 const EXCHANGE = 'appointments.events';
 const QUEUE = 'inventory-billing.appointment-created';
@@ -28,10 +29,22 @@ export class RabbitmqConsumerService implements OnModuleInit, OnModuleDestroy {
     const url = process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672';
     this.connection = amqp.connect([url]);
 
-    this.connection.on('connect', () => this.logger.log('RabbitMQ consumer connected'));
-    this.connection.on('disconnect', (params) =>
-      this.logger.warn(`RabbitMQ consumer disconnected: ${params?.err?.message}`),
-    );
+    this.connection.on('connect', () => {
+      this.logger.log('RabbitMQ consumer connected');
+      Sentry.addBreadcrumb({
+        category: 'rabbitmq',
+        message: 'RabbitMQ consumer connected',
+        level: 'info',
+      });
+    });
+    this.connection.on('disconnect', (params) => {
+      this.logger.warn(`RabbitMQ consumer disconnected: ${params?.err?.message}`);
+      Sentry.addBreadcrumb({
+        category: 'rabbitmq',
+        message: `RabbitMQ consumer disconnected: ${params?.err?.message}`,
+        level: 'warning',
+      });
+    });
 
     this.channel = this.connection.createChannel({
       json: true,
@@ -48,6 +61,7 @@ export class RabbitmqConsumerService implements OnModuleInit, OnModuleDestroy {
       this.logger.log(`Subscribed to RabbitMQ queue "${QUEUE}" (exchange "${EXCHANGE}")`);
     } catch (error) {
       this.logger.warn(`RabbitMQ no disponible, reserva de inventario desactivada: ${error.message}`);
+      Sentry.captureException(error);
     }
   }
 
@@ -71,11 +85,27 @@ export class RabbitmqConsumerService implements OnModuleInit, OnModuleDestroy {
       event = JSON.parse(message.content.toString());
     } catch (error) {
       this.logger.error(`Invalid appointment.created payload from RabbitMQ: ${error.message}`);
+      Sentry.withScope((scope) => {
+        scope.setTag('service', 'inventory-billing');
+        scope.setTag('component', 'rabbitmq-consumer');
+        scope.setContext('rabbitmq', {
+          queue: QUEUE,
+          exchange: EXCHANGE,
+        });
+        Sentry.captureException(error);
+      });
       this.channel.ack(message);
       return;
     }
 
     try {
+      Sentry.addBreadcrumb({
+        category: 'rabbitmq',
+        message: `Received appointment.created for ${event.appointmentId}`,
+        level: 'info',
+        data: event,
+      });
+
       const result = await this.inventoryService.reserveForService(
         event.serviceId,
         event.appointmentId,
@@ -89,6 +119,16 @@ export class RabbitmqConsumerService implements OnModuleInit, OnModuleDestroy {
         `Error reserving stock via RabbitMQ for appointment ${event.appointmentId}: ${error.message}`,
         error.stack,
       );
+      Sentry.withScope((scope) => {
+        scope.setTag('service', 'inventory-billing');
+        scope.setTag('component', 'rabbitmq-consumer');
+        scope.setContext('rabbitmq', {
+          queue: QUEUE,
+          appointmentId: event.appointmentId,
+          serviceId: event.serviceId,
+        });
+        Sentry.captureException(error);
+      });
       this.channel.ack(message);
     }
   }
