@@ -5,16 +5,17 @@ import { AppModule } from './app.module';
 import { RpcExceptionFilter } from './shared/filters/rpc-exception.filter';
 
 async function bootstrap() {
-  const app = await NestFactory.createMicroservice<MicroserviceOptions>(
-    AppModule,
-    {
-      transport: Transport.TCP,
-      options: {
-        host: '0.0.0.0',
-        port: 3001,
-      },
+  // Patrón híbrido: aplicación HTTP + microservicio TCP
+  // RabbitMQ se gestiona mediante RabbitmqPublisherService (propio), no como transporte NestJS
+  const app = await NestFactory.create(AppModule);
+
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.TCP,
+    options: {
+      host: '0.0.0.0',
+      port: 3001,
     },
-  );
+  });
 
   app.useGlobalFilters(new RpcExceptionFilter());
   app.useGlobalPipes(
@@ -25,7 +26,7 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen();
+  await app.startAllMicroservices();
   console.log('Microservicio ms-appointments corriendo en TCP:3001');
 }
 bootstrap();

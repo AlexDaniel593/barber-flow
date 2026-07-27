@@ -39,7 +39,22 @@ export class AppointmentEventsService implements OnModuleInit, OnModuleDestroy {
     const url = `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || 6379}`;
     this.subscriber = createClient({
       url,
-      socket: { connectTimeout: 3000, reconnectStrategy: () => false },
+      socket: {
+        connectTimeout: 3000,
+        reconnectStrategy: (retries: number) => {
+          if (retries > 5) {
+            this.logger.error(
+              'Redis subscriber: máximo de reintentos alcanzado, suscripciones desactivadas',
+            );
+            return new Error('Max reconnect retries exceeded');
+          }
+          const delay = Math.min(retries * 500, 3000);
+          this.logger.warn(
+            `Redis subscriber: reintento ${retries} en ${delay}ms`,
+          );
+          return delay;
+        },
+      },
     });
 
     this.subscriber.on('error', (error) =>
