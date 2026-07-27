@@ -1,0 +1,57 @@
+=== PRUEBA DE CASOS DE ERROR (TRADUCCIÓN DE CÓDIGOS gRPC -> HTTP) ===
+
+CASO 1: Recurso no encontrado (ID inexistente)
+--------------------------------------------------
+1. Solicitud HTTP al Gateway:
+   GET http://localhost:3000/stylists/00000000-0000-0000-0000-000000000000/working-hours
+
+2. Flujo de transporte y error:
+   - Handler gRPC lanza: RpcException({ code: status.NOT_FOUND (5), message: "Estilista con ID 00000000-0000-0000-0000-000000000000 no encontrado" })
+   - Gateway captura error y lo traduce a NotFoundException (HTTP 404).
+
+3. Respuesta HTTP devuelta (404 Not Found):
+   HTTP/1.1 404 Not Found
+   Content-Type: application/json
+
+   {
+     "statusCode": 404,
+     "message": "Estilista con ID 00000000-0000-0000-0000-000000000000 no encontrado",
+     "error": "Not Found"
+   }
+
+
+CASO 2: Argumento inválido (ID vacío o solo espacios)
+--------------------------------------------------
+1. Solicitud gRPC / TCP directa con ID vacío:
+   getStylistWorkingHours({ id: "   " })
+
+2. Flujo de transporte y error:
+   - Handler gRPC detecta id.trim() === '' y lanza:
+     RpcException({ code: status.INVALID_ARGUMENT (3), message: "El campo id es requerido y no puede estar vacío" })
+   - Gateway traduce a BadRequestException (HTTP 400).
+
+3. Respuesta HTTP devuelta (400 Bad Request):
+   HTTP/1.1 400 Bad Request
+   Content-Type: application/json
+
+   {
+     "statusCode": 400,
+     "message": "El id del estilista no puede estar vacío",
+     "error": "Bad Request"
+   }
+
+
+CASO 3: Servicio destino caído (ms-services-staff fuera de línea)
+--------------------------------------------------
+1. Intentar consultar cuando ms-services-staff está apagado.
+
+2. Flujo de transporte:
+   - gRPC devuelve status 14 (UNAVAILABLE).
+   - appointments / gateway atrapan status 14 y devuelven 400/503 controlado sin tumbar la aplicación ni colgar el socket.
+
+3. Respuesta HTTP devuelta (400 / 503):
+   HTTP/1.1 400 Bad Request
+   {
+     "statusCode": 400,
+     "message": "El servicio de estilistas no está disponible en este momento"
+   }
