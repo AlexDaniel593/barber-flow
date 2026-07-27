@@ -10,21 +10,22 @@
 | **Actividad asignada** | Actividad D — Observabilidad con contexto en un microservicio |
 | **Rama** | `exam/JonathanJQ03` |
 | **Tag** | `examen-JonathanJQ03` |
-| **Pull Request** | (Pendiente) |
-| **Tarjeta Kanban** | (Done) Aunque realizada como Draft para una rápida implementación |
-| **¿Hiciste el Paso 0?** | No ya que el repositorio contaba con la base de Sentry que la realizamos en el Avance 3 en `apps/gateway/src/main.ts` |
+| **Pull Request** | [#74](https://github.com/AlexDaniel593/barber-flow/pull/74) |
+| **Tarjeta Kanban** | Estado `Done` (registrada en tablero de GitHub Projects) |
+| **¿Hiciste el Paso 0?** | No, ya que el repositorio contaba con la base de Sentry realizada en el Avance 3 en `apps/gateway/src/main.ts` |
 
 ---
 
 ## 1. Qué construí
 
-Se estandarizó la convención para la captura de la observabilidad en Sentry para el API Gateway y los microservicios, estructurando la solución en los siguientes de la siguiente manera:
+Se estandarizó la convención para la captura de la observabilidad en Sentry para el API Gateway y los microservicios, estructurando la solución de la siguiente manera:
 
 * **Tags obligatorios:** Inyección estandarizada de los tags `service`, `transport`, `failure_mode` y `correlation_id` en todos los eventos de error capturados.
 * **Trazabilidad de peticiones:** Propagación end-to-end mediante el encabezado `x-correlation-id`, con generación de un identificador dinámico de respaldo (*fallback*) cuando la cabecera no está presente.
 * **Aislamiento de contexto:** Uso de `Sentry.withScope()` por solicitud para evitar la contaminación de metadatos entre peticiones concurrentes en Node.js y registrar *breadcrumbs* de navegación previa.
 * **Seguridad y privacidad (PII):** Filtrado explícito para evitar la fuga de datos sensibles (contraseñas, tokens JWT o *bodies* completos), limitando la captura a metadatos seguros (`method`, `url`, `status`, `correlationId`).
 * **Resiliencia (Modo No-Op):** Operación transparente de los filtros de excepciones en entornos locales o de desarrollo sin interrumpir el arranque del servicio cuando `SENTRY_DSN` no está configurado.
+
 ---
 
 ## 2. Anclaje con el repositorio de mi grupo — **obligatorio (C2)**
@@ -39,8 +40,10 @@ Se estandarizó la convención para la captura de la observabilidad en Sentry pa
   Seguí la arquitectura de filtros globales de NestJS utilizando el decorador `@Catch()`, la inyección del `Logger` nativo del framework y la gestión de scope por solicitud con `Sentry.withScope()`.
 
 * **¿Qué NO dupliqué, pudiendo hacerlo?**  
-  No creé un nuevo filtro ni un middleware paralelo para Sentry. Sino usé directamente los filtros globales `AllExceptionsFilter` y `CustomRpcExceptionFilter` que mi grupo ya utilizaba para centralizar todas las excepciones de la aplicación.
+  No creé un nuevo filtro ni un middleware paralelo para Sentry. Usé directamente los filtros globales `AllExceptionsFilter` y `CustomRpcExceptionFilter` que mi grupo ya utilizaba para centralizar todas las excepciones de la aplicación.
+
 ---
+
 ## 3. Decisiones técnicas
 
 ### Decisión 1
@@ -51,7 +54,7 @@ Se estandarizó la convención para la captura de la observabilidad en Sentry pa
 ### Decisión 2
 - **Qué decidí:** Generar un identificador dinámico de respaldo (`corr-${Date.now()}`) cuando la cabecera `x-correlation-id` no está presente en la solicitud HTTP.
 - **Alternativa que descarté:** Omitir el tag `correlation_id` o dejarlo como valor `null` / `undefined` cuando la petición carece de la cabecera.
-- **Por qué:** Garantiza una trazabilidad uniforme del 100% en Sentry. Permite agrupar y rastrear fallas incluso en peticiones externas o de clientes que no envían el encabezado explícitamente.ían cabeceras de trazabilidad explícitas.
+- **Por qué:** Garantiza una trazabilidad uniforme del 100% en Sentry. Permite agrupar y rastrear fallas incluso en peticiones externas o de clientes que no envían el encabezado explícitamente.
 
 ---
 
@@ -61,13 +64,12 @@ Se estandarizó la convención para la captura de la observabilidad en Sentry pa
 > Porque la observabilidad es un mecanismo de soporte y no un requisito funcional bloqueante. Si el servicio fallara al arrancar por la ausencia de DSN, impediría la ejecución del sistema en entornos locales, de pruebas o de desarrollo fuera de línea donde Sentry no es requerido.
 
 **Pregunta 2: ¿Qué información nunca debe llegar a Sentry desde un sistema con datos de usuarios, y qué hiciste concretamente para impedirlo?**
->Nunca deben llegar datos sensibles como contraseñas, tokens JWT, tarjetas de crédito o información personal de los usuarios (PII). Para evitarlo, dejé fuera del reporte el cuerpo de la petición (body) y las cabeceras de autenticación (Authorization), enviando únicamente metadatos seguros como el método HTTP, la URL, el código de estado y el correlationId.
+> Nunca deben llegar datos sensibles como contraseñas, tokens JWT, tarjetas de crédito o información personal de los usuarios (PII). Para evitarlo, dejé fuera del reporte el cuerpo de la petición (body) y las cabeceras de autenticación (Authorization), enviando únicamente metadatos seguros como el método HTTP, la URL, el código de estado y el correlationId.
 
 **Pregunta 3: ¿Qué diferencia hay entre un tag y un contexto en Sentry, y por qué elegiste precisamente esos tags?**
 > Un tag es una etiqueta indexada que nos permite buscar, filtrar y agrupar errores fácilmente en el panel de Sentry. Un contexto es información detallada sobre el estado del error que sirve para analizarlo a fondo, pero que no permite hacer búsquedas. Elegí service, transport, failure_mode y correlation_id porque me permiten identificar al instante en qué microservicio ocurrió la falla, bajo qué protocolo, qué tipo de error fue y seguirle el rastro a la petición.
----
 
-## 5. Uso de Inteligencia Artificial — **obligatorio**
+---
 
 ## 5. Uso de Inteligencia Artificial — **obligatorio**
 
@@ -84,9 +86,11 @@ Para esta actividad utilicé herramientas de IA como un co-piloto de apoyo enfoc
 
 **¿En qué se equivocó respecto a mi repositorio?**
 > La IA generó código asumiendo una arquitectura de microservicios genérica basada en protocolo **gRPC**. Al revisar la configuración real de nuestro proyecto `barber-flow`, identifiqué que el microservicio de citas (`Appointments`) utiliza transporte **TCP** para comunicarse con el API Gateway. Corregí manualmente el tag `transport` asignándole el valor `'tcp'` en `rpc-exception.filter.ts`, asegurando que las métricas registradas en Sentry reflejen con exactitud el protocolo de red de nuestro sistema.
+
 ---
 
 ## 6. Evidencia
+
 | Archivo | Qué demuestra |
 |---|---|
 | `antes-tags-incompletos.txt` | Estado previo donde la captura no incluía la convención completa de tags ni trazabilidad. |
@@ -102,6 +106,7 @@ Para esta actividad utilicé herramientas de IA como un co-piloto de apoyo enfoc
 ![Correlation ID en Postman](./02-sentry-tags.png)
 ![Tarjeta Kanban en Hecho](./03-kanban.png)
 ![Detalle de Tarjeta Kanban](./03-kanban-descripcion.png)
+
 **Cómo reproducir mi cambio desde cero:**
 
 ```bash
@@ -109,7 +114,6 @@ Para esta actividad utilicé herramientas de IA como un co-piloto de apoyo enfoc
 cd apps/gateway
 npx jest src/common/filters/sentry-context.spec.ts
 ```
-
 ## 7. Prueba automatizada
 
 | Archivo de la prueba | `apps/gateway/src/common/filters/sentry-context.spec.ts` |
