@@ -30,6 +30,11 @@ services:
     restart: unless-stopped
     networks:
       - barber-flow-network
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
 
   redis:
     image: redis:7-alpine
@@ -39,6 +44,11 @@ services:
     restart: unless-stopped
     networks:
       - barber-flow-network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
@@ -54,6 +64,11 @@ services:
     restart: unless-stopped
     networks:
       - barber-flow-network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.75"
+          memory: 384M
 
   # ---- MS2: Services & Staff (construido) ----
 
@@ -87,6 +102,11 @@ services:
       retries: 5
     networks:
       - barber-flow-network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 300M
 
   # ---- MS1: Appointments (construido) ----
   appointments:
@@ -127,6 +147,11 @@ services:
       retries: 5
     networks:
       - barber-flow-network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 300M
 
   # ---- MS3: Inventory & Billing (construido) ----
   inventory-billing:
@@ -166,6 +191,11 @@ services:
       retries: 5
     networks:
       - barber-flow-network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 300M
 
   # ---- API Gateway ----
   gateway:
@@ -211,6 +241,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 300M
 
 volumes:
   postgres-data:
