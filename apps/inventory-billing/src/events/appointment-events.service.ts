@@ -1,25 +1,12 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { createClient, RedisClientType } from 'redis';
-import { InventoryService } from '../inventory/inventory.service';
-import { InvoicesService } from '../invoices/invoices.service';
-
-const DEFAULT_CONSUMPTION_QUANTITY = 1;
-const DEFAULT_PAYMENT_METHOD = 'cash';
+import { InvoicesService, AppointmentCompletedEvent } from '../invoices/invoices.service';
 
 const CHANNELS = {
   COMPLETED: 'appointment.completed',
   CANCELLED: 'appointment.cancelled',
   CREATED: 'appointment.created',
 };
-
-interface AppointmentCompletedEvent {
-  appointmentId: string;
-  serviceId: string;
-  stylistId: string;
-  duration: number;
-  startTime: string;
-  servicePrice?: number;
-}
 
 interface AppointmentCancelledEvent {
   appointmentId: string;
@@ -30,10 +17,7 @@ export class AppointmentEventsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AppointmentEventsService.name);
   private subscriber: RedisClientType;
 
-  constructor(
-    private readonly inventoryService: InventoryService,
-    private readonly invoicesService: InvoicesService,
-  ) {}
+  constructor(private readonly invoicesService: InvoicesService) {}
 
   async onModuleInit() {
     const url = `redis://${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || 6379}`;
@@ -97,39 +81,12 @@ export class AppointmentEventsService implements OnModuleInit, OnModuleDestroy {
     }
 
     try {
-      const products = await this.inventoryService.findByService(event.serviceId);
+      const result = await this.invoicesService.processAppointmentCompleted(event);
 
-      const invoiceItems = [
-        {
-          description: `Servicio ${event.serviceId}`,
-          quantity: 1,
-          unitPrice: event.servicePrice ?? 0,
-          total: event.servicePrice ?? 0,
-        },
-      ];
-
-      for (const product of products) {
-        const { consumption } = await this.inventoryService.consume({
-          inventoryId: product.id,
-          quantity: DEFAULT_CONSUMPTION_QUANTITY,
-          appointmentId: event.appointmentId,
-        });
-
-        const unitPrice = Number(product.pricePerUnit ?? 0);
-        invoiceItems.push({
-          description: product.name,
-          quantity: consumption.quantity,
-          unitPrice,
-          total: unitPrice * consumption.quantity,
-        });
+      if (result === 'duplicate') {
+        this.logger.warn(`Duplicate appointment.completed ignored for appointment ${event.appointmentId}`);
+        return;
       }
-
-      await this.invoicesService.create({
-        appointmentId: event.appointmentId,
-        stylistId: event.stylistId,
-        items: invoiceItems,
-        paymentMethod: DEFAULT_PAYMENT_METHOD,
-      });
 
       this.logger.log(`Processed appointment.completed for appointment ${event.appointmentId}`);
     } catch (error) {

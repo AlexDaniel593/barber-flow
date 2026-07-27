@@ -9,6 +9,7 @@ import { InventoryItem } from './inventory/entities/inventory-item.entity';
 import { InventoryConsumption } from './inventory/entities/inventory-consumption.entity';
 import { Invoice } from './invoices/entities/invoice.entity';
 import { InvoiceItem } from './invoices/entities/invoice-item.entity';
+import { ProcessedEvent } from './invoices/entities/processed-event.entity';
 
 @Module({
   imports: [
@@ -19,7 +20,7 @@ import { InvoiceItem } from './invoices/entities/invoice-item.entity';
       username: process.env.DB_USERNAME || 'postgres',
       password: process.env.DB_PASSWORD || 'postgres',
       database: process.env.DB_DATABASE || 'inventory_billing_db',
-      entities: [InventoryItem, InventoryConsumption, Invoice, InvoiceItem],
+      entities: [InventoryItem, InventoryConsumption, Invoice, InvoiceItem, ProcessedEvent],
       synchronize: true,
     }),
     MicroservicesClientModule,
