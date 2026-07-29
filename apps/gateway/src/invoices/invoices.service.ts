@@ -35,4 +35,10 @@ export class InvoicesService implements OnApplicationBootstrap {
   async findOne(id: string) {
     return lastValueFrom(this.client.send({ cmd: invoicesMessagePatterns.FIND_ONE }, { id }));
   }
+
+  async findByAppointment(appointmentId: string) {
+    return lastValueFrom(
+      this.client.send({ cmd: invoicesMessagePatterns.FIND_BY_APPOINTMENT }, { appointmentId }),
+    );
+  }
 }

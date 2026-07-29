@@ -13,7 +13,7 @@ import { JWT_SECRET } from '../constants';
     TypeOrmModule.forFeature([User]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
-      secret: JWT_SECRET,
+      secret: JWT_SECRET || process.env.JWT_SECRET || 'dev-secret-change-in-production',
       signOptions: { expiresIn: '24h' },
     }),
   ],

@@ -1,4 +1,4 @@
-export const JWT_SECRET = process.env.JWT_SECRET || '';
+export const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 export const JWT_EXPIRES_IN = '24h';
 
 export const servicesMessagePatterns = {
@@ -21,6 +21,7 @@ export const stylistsMessagePatterns = {
 export const invoicesMessagePatterns = {
   CREATE: 'invoices.create',
   FIND_ONE: 'invoices.findOne',
+  FIND_BY_APPOINTMENT: 'invoices.findByAppointment',
 };
 
 export const appointmentsMessagePatterns = {

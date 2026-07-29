@@ -5,6 +5,7 @@ import { StylistsModule } from './stylists/stylists.module';
 import { AuthModule } from './auth/auth.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { AppointmentsModule } from './appointments/appointments.module';
+import { InventoryModule } from './inventory/inventory.module';
 import { UsersModule } from './users/users.module';
 import { User } from './users/user.entity';
 import { HealthModule } from './health/health.module';
@@ -30,6 +31,7 @@ import { RolesGuard } from './auth/roles.guard';
     AuthModule,
     InvoicesModule,
     AppointmentsModule,
+    InventoryModule,
     HealthModule,
   ],
   controllers: [],

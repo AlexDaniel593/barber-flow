@@ -1,5 +1,7 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { createClient, RedisClientType } from 'redis';
+import { ClientProxy } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
 import { InventoryService } from '../inventory/inventory.service';
 import { InvoicesService } from '../invoices/invoices.service';
 
@@ -33,6 +35,8 @@ export class AppointmentEventsService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly inventoryService: InventoryService,
     private readonly invoicesService: InvoicesService,
+    @Inject('SERVICES_STAFF_CLIENT')
+    private readonly staffClient: ClientProxy,
   ) {}
 
   async onModuleInit() {
@@ -99,9 +103,23 @@ export class AppointmentEventsService implements OnModuleInit, OnModuleDestroy {
     try {
       const products = await this.inventoryService.findByService(event.serviceId);
 
+      let serviceName = `Servicio ${event.serviceId}`;
+      try {
+        const service = await firstValueFrom(
+          this.staffClient.send({ cmd: 'services.findOne' }, { id: event.serviceId }),
+        );
+        if (service?.name) {
+          serviceName = service.name;
+        }
+      } catch (error) {
+        this.logger.warn(
+          `No se pudo obtener el nombre del servicio ${event.serviceId}: ${error.message}`,
+        );
+      }
+
       const invoiceItems = [
         {
-          description: `Servicio ${event.serviceId}`,
+          description: serviceName,
           quantity: 1,
           unitPrice: event.servicePrice ?? 0,
           total: event.servicePrice ?? 0,
