@@ -112,10 +112,6 @@ curl http://localhost:3000/api/<<recurso>>
 
 El sistema está compuesto por **3 microservicios** + **1 API Gateway**, comunicándose mediante **TCP** (síncrono), **Redis** (asíncrono), **gRPC** (contrato) y **RabbitMQ** (PUB/SUB). Cada microservicio tiene una responsabilidad única y utiliza **PostgreSQL** como base de datos.
 
-![Diagrama de arquitectura de BARBER-FLOW](docs/evidencias/arquitectura.png)
-
-> **Diagrama interactivo (IcePanel):** [https://s.icepanel.io/MPtqexeBubBBMe/nXW4/landscape/diagrams/viewer?diagram=jAgPGMOjwq&model=QoqpFGWNaq&overlay_tab=tags&x1=-1234.8&x2=2996.1&y1=-64.1&y2=2210.5](https://s.icepanel.io/MPtqexeBubBBMe/nXW4/landscape/diagrams/viewer?diagram=jAgPGMOjwq&model=QoqpFGWNaq&overlay_tab=tags&x1=-1234.8&x2=2996.1&y1=-64.1&y2=2210.5)
-
 ```mermaid
 graph TB
     subgraph "👥 Usuarios"
@@ -128,7 +124,7 @@ graph TB
     end
 
     subgraph "📦 Microservicios"
-        MS1[📅 MS-Appointments<br/>Puerto 3001<br/>TCP + gRPC Client + Redis PUB + RabbitMQ PUB]
+        MS1[📅 MS-Appointments<br/>Puerto 3001<br/>TCP + gRPC Client + Redis PUB]
         MS2[📋 MS-Services-Staff<br/>Puerto 3002 · gRPC 50051<br/>TCP + gRPC Server]
         MS3[📦 MS-Inventory-Billing<br/>Puerto 3003<br/>TCP + Redis SUB + RabbitMQ SUB]
     end
@@ -139,22 +135,22 @@ graph TB
         MQ[🐇 RabbitMQ<br/>PUB/SUB]
     end
 
-    C -->|HTTP/JWT| G
-    A -->|HTTP/JWT| G
-
+    C -->|HTTP| G
+    A -->|HTTP| G
+    
     G -->|TCP| MS1
     G -->|TCP| MS2
     G -->|TCP| MS3
-
+    
     MS1 -->|🔄 gRPC FindOneStylist<br/>🔄 gRPC FindOneService| MS2
-    MS1 -->|PUBLISH appointment.completed| R
+    MS1 -->|PUBLISH Eventos| R
     R -->|SUBSCRIBE| MS3
-
-    MS1 -->|PUBLISH appointment.created| MQ
+    
+    MS1 -->|PUBLISH a RabbitMQ| MQ
     MQ -->|CONSUME| MS3
 
     MS3 -->|TCP Consulta| MS2
-
+    
     MS1 --> DB
     MS2 --> DB
     MS3 --> DB
@@ -203,7 +199,7 @@ graph LR
 ## 🧭 Metodología
 - **Kanban:** [GitHub Projects](https://github.com/users/AlexDaniel593/projects/1/views/1)
   ![Tablero Kanban](docs/evidencias/kanban.png)
-- **Ramificación:** **GitHub Flow** — `main` protegida, ramas `feat/…` por funcionalidad, PRs revisados antes de merge y **tags por avance** (`v1-avance1`, `v2-avance2`, `v3-final`) que marcan los cortes de entrega verificables. Cada avance se integra a `main` mediante un Pull Request revisado por al menos un integrante distinto al autor, y el tag se crea sobre `main` una vez aprobado.
+- **Ramificación:** <<GitHub Flow>> — `main` protegida, ramas `feat/…`, PRs revisados, tags por avance.
 - **Commits semánticos:** Conventional Commits.
 
 ## 🧩 Patrones y principios aplicados
@@ -423,68 +419,13 @@ En el **API Gateway** se implementó autenticación con JWT y autorización por 
 **Conclusión:** El flujo de seguridad del Gateway cumple los tres escenarios esperados del avance: emisión de JWT en login, bloqueo con **401** cuando no hay autenticación válida y bloqueo con **403** cuando el usuario autenticado no tiene permisos para la operación.
 
 ### 📊 Observabilidad (Sentry)
-
-Cada microservicio inicializa Sentry al arrancar (`Sentry.init` con el DSN desde `SENTRY_DSN`) y captura automáticamente los errores no controlados. Lo que se registra:
-
-- **Errores 5xx y excepciones no capturadas** (HTTP en Gateway, RPC en MS1/MS2/MS3, gRPC en MS2) → `captureException` con tags de `service` y `component`.
-- **Errores 4xx** → se registran como **breadcrumbs** para dar contexto sin contar como eventos de error.
-- **Eventos de broker** (conexión/desconexión de RabbitMQ, publicación fallida) → breadcrumbs de nivel `info`/`warning`.
-- **Contexto extra** por evento: `service`, `component`, `requestId` cuando aplica.
-
-**Verificación del panel de Sentry:**
-
-Con el sistema levantado y el `SENTRY_DSN` real configurado en `.env`, se llama al endpoint de prueba:
-
-```bash
-curl http://localhost:3000/api/health/sentry-test
-# {"status":"sent","message":"Test error sent to Sentry","timestamp":"..."}
-```
-
-El Gateway lanza un `Error('Sentry test error from gateway')` vía `Sentry.captureException`, que aparece en el dashboard de Sentry como un issue nuevo con el tag `service:gateway`.
-
-> **Nota:** la captura del panel se obtiene levantando el stack con el DSN real y ejecutando `GET /api/health/sentry-test`. Sin esa imagen, la integración de Sentry en los 4 servicios se evalúa como nivel 2 (código presente sin evidencia de captura).
+✍️ <<Qué se registra; captura del error en el panel de Sentry.>>
 
 ### 🔗 Integración final
-
-La operación que atraviesa varios microservicios y transportes es la **creación de una cita** (`POST /api/appointments`), que combina los cuatro servicios y los cuatro transportes del sistema en un único flujo:
-
-```
-Cliente ──HTTP/JWT──▶ Gateway ──TCP──▶ MS1-Appointments
-                                      │
-                                      ├──gRPC──▶ MS2-Services-Staff  (valida estilista + servicio)
-                                      │
-                                      ├──Redis PUB──▶ MS3-Inventory-Billing  (evento appointment.created)
-                                      │
-                                      └──RabbitMQ PUB──▶ MS3-Inventory-Billing  (reserva de stock)
-```
-
-**Flujo paso a paso (`login → POST /api/appointments → gRPC a MS2 → RabbitMQ → MS3`):**
-
-1. **`POST /api/auth/login`** — El cliente se autentica contra el **Gateway** (HTTP, puerto 3000). El Gateway valida credenciales y devuelve un **JWT** firmado con `JWT_SECRET` y expiración `JWT_EXPIRES_IN` (por defecto `24h`).
-2. **`POST /api/appointments`** — El cliente envía la cita con su JWT en el header `Authorization: Bearer <token>`. El **Guard de JWT** valida el token y el **Guard de roles** verifica que el rol sea `client` o `admin`.
-3. **Gateway → MS1 (TCP, puerto 3001)** — El Gateway enruta la petición por TCP al microservicio **MS1-Appointments** con el patrón `appointments.create`.
-4. **MS1 → MS2 (gRPC, puerto 50051)** — MS1 valida en tiempo real, con contrato tipado (`apps/proto/barber.proto`), que el **estilista** existe y está activo (`FindOneStylist`) y que el **servicio** existe y está activo (`FindOneService`). Si alguno falla, se lanza `NotFoundException`/`BadRequestException` y la cita no se crea.
-5. **MS1 → Redis (PUB/SUB)** — Tras guardar la cita, MS1 publica el evento `appointment.created` en el canal de Redis (notificación general del Avance 1).
-6. **MS1 → RabbitMQ (PUB/SUB, exchange `appointments.events`)** — MS1 publica también `appointment.created` en el exchange fanout de RabbitMQ (segundo transporte del Avance 2).
-7. **MS3 consume ambos eventos** — **MS3-Inventory-Billing** está suscrito a la cola `inventory-billing.appointment-created` de RabbitMQ y, al recibir el mensaje, llama a `InventoryService.reserveForService()` para **reservar** el stock de los productos vinculados al servicio de la cita. El flujo de Redis (descuento real + factura) se dispara más tarde, al **completar** la cita (`PATCH /api/appointments/{id}/status` → `COMPLETED`).
-
-**Resultado:** una sola petición HTTP del cliente atraviesa **4 servicios** y **4 transportes** (HTTP, TCP, gRPC, Redis + RabbitMQ), demostrando la integración completa del sistema.
+✍️ <<Operación que atraviesa varios microservicios/transportes desde el Gateway.>>
 
 ### 🏗️ Diagrama final
-
-El sistema integrado corresponde al diagrama de arquitectura general (sección [🏗️ Arquitectura](#-arquitectura)), que ya refleja los 4 servicios, los 4 transportes y las bases de datos. Se reutiliza aquí para evitar duplicación:
-
-![Diagrama de arquitectura de BARBER-FLOW](docs/evidencias/arquitectura.png)
-
-> **Diagrama interactivo (IcePanel):** [https://s.icepanel.io/MPtqexeBubBBMe/nXW4/landscape/diagrams/viewer?diagram=jAgPGMOjwq&model=QoqpFGWNaq&overlay_tab=tags&x1=-1234.8&x2=2996.1&y1=-64.1&y2=2210.5](https://s.icepanel.io/MPtqexeBubBBMe/nXW4/landscape/diagrams/viewer?diagram=jAgPGMOjwq&model=QoqpFGWNaq&overlay_tab=tags&x1=-1234.8&x2=2996.1&y1=-64.1&y2=2210.5)
-
-**Flujo integrado `login → POST /api/appointments → gRPC a MS2 → RabbitMQ → MS3`:**
-
-1. `login` (HTTP/JWT) → Gateway emite token.
-2. `POST /api/appointments` (HTTP/JWT) → Gateway enruta por **TCP** a MS1.
-3. MS1 valida estilista/servicio por **gRPC** contra MS2 (contrato `.proto`).
-4. MS1 publica `appointment.created` en **Redis** (evento general) y en **RabbitMQ** (reserva de stock).
-5. MS3 consume el evento de RabbitMQ y reserva inventario; al **completar** la cita, MS3 consume el evento de Redis y descuenta stock + genera factura.
+✍️ <<Sistema integrado>>
 
 ---
 
@@ -494,7 +435,7 @@ El sistema integrado corresponde al diagrama de arquitectura general (sección [
 
 MS1 (Appointments) consulta a MS2 (Services-Staff) vía gRPC (puerto 50051) para validar que el estilista y el servicio existen y están activos antes de crear una cita. La llamada usa el contrato definido en `apps/proto/barber.proto`.
 
-> La evidencia de la validación gRPC se observa en el flujo de creación de citas: al llamar `POST /api/appointments` con un `stylistId` inexistente, MS1 responde `404 NotFoundException` ("Estilista con ID … no encontrado"), y con un estilista inactivo responde `400 BadRequestException` ("El estilista no está disponible (inactivo)"). Estos mensajes provienen de `verifyStylistViaGrpc()` en `apps/appointments/src/appointments/appointments.service.ts`, que consume el servidor gRPC de MS2.
+![gRPC Execution Proof](docs/evidencias/grpc-proof.png)
 
 ### Sentry — Error Tracking y Observabilidad
 
@@ -512,92 +453,7 @@ Endpoint de verificación: `GET /api/health` muestra el estado de Sentry (`enabl
 ---
 
 ## 🎤 Defensa
-
-### Diapositivas
-
-**Presentación (Canva):** [https://canva.link/m9yk06h6cagbbwj](https://canva.link/m9yk06h6cagbbwj)
-
-### Estructura de la exposición
-
-Sugerido **8–10 diapositivas + demo en vivo** (10–12 min).
-
-| # | Diapositiva | Contenido | Tiempo |
-|---|---|---|---|
-| 1 | **Portada** | Sistema (BARBER-FLOW), integrantes, roles | 20 s |
-| 2 | **Problema y dominio del MVP** | Gestión de citas para peluquerías; por qué microservicios | 30 s |
-| 3 | **Arquitectura general** | Diagrama final (4 servicios + 4 transportes) | 1 min |
-| 4 | **Avance 1 — Latencia y acoplamiento** | Síncrono vs asíncrono; hallazgo con la tabla de latencia y la prueba de caída | 1.5 min |
-| 5 | **Avance 2 — Comunicación** | gRPC + segundo transporte (RabbitMQ) + manejo de excepciones (tabla comparativa) | 1.5 min |
-| 6 | **Avance 3 — Seguridad y observabilidad** | JWT/Guard + Sentry | 1.5 min |
-| 7 | **Temas de clase aplicados** | Patrones (Gateway, Pub/Sub, Repository, Adapter), SOLID, transportes, excepciones | 1 min |
-| 8 | **DEMO EN VIVO** | Runbook abajo | 3–4 min |
-| 9 | **Conclusiones y aprendizajes** | Qué funcionó, qué mejorar | 30 s |
-| 10 | **Cierre / Q&A** | Preguntas del jurado | — |
-
-### Runbook de la demo (ensayarlo antes)
-
-```bash
-# 1. Levantar el sistema completo
-docker compose up -d --build
-docker compose ps   # verificar que los 4 servicios estén healthy
-
-# 2. Login (emite JWT)
-curl -X POST http://localhost:3000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@barber.com","password":"admin123"}'
-# → copiar el access_token
-
-# 3. Ruta protegida con token válido (200 OK)
-curl http://localhost:3000/api/appointments \
-  -H "Authorization: Bearer <TOKEN>"
-
-# 4. Ruta protegida sin token (401 Unauthorized)
-curl http://localhost:3000/api/appointments
-
-# 5. Operación integrada: crear cita (atraviesa TCP + gRPC + Redis + RabbitMQ)
-curl -X POST http://localhost:3000/api/appointments \
-  -H "Authorization: Bearer <TOKEN>" \
-  -H "Content-Type: application/json" \
-  -d '{"stylistId":"<UUID>","serviceId":"<UUID>","clientName":"Demo","clientEmail":"demo@test.com","clientPhone":"0999999999","startTime":"2026-08-01T10:00:00.000Z","duration":30}'
-
-# 6. Completar la cita (dispara evento Redis → MS3 descuenta stock + factura)
-curl -X PATCH http://localhost:3000/api/appointments/<APPOINTMENT_ID>/status \
-  -H "Authorization: Bearer <TOKEN>" \
-  -H "Content-Type: application/json" \
-  -d '{"status":"COMPLETED"}'
-
-# 7. Error en Sentry (captura en el panel)
-curl http://localhost:3000/api/health/sentry-test
-# → abrir Sentry dashboard y mostrar el issue "Sentry test error from gateway"
-```
-
-**Puntos clave a narrar durante la demo:**
-- En el paso 5, explicar que la petición atraviesa **4 transportes**: HTTP (cliente→Gateway), TCP (Gateway→MS1), gRPC (MS1→MS2) y RabbitMQ (MS1→MS3).
-- En el paso 6, explicar que el evento Redis desacopla a MS1 de MS3: la cita se completa aunque MS3 esté caído.
-- En el paso 7, mostrar el issue apareciendo en tiempo real en el panel de Sentry.
-
-### Preguntas frecuentes del jurado (preparadas)
-
-1. **¿Por qué microservicios y no un monolito?**
-   Para evidenciar los conceptos del curso: comunicación síncrona/asíncrona, acoplamiento temporal y latencia. Un monolito no permitiría medir estos fenómenos. El dominio (peluquería) es simple a propósito para centrar el esfuerzo en la arquitectura.
-
-2. **¿Cuál es la diferencia entre TCP y gRPC en su sistema?**
-   Ambos son síncronos, pero gRPC aporta un **contrato explícito y tipado** (`.proto`) que MS1 y MS2 comparten en el monorepo, mientras que TCP con NestJS Microservices es más flexible pero no impone contrato. Usamos gRPC para validar estilista/servicio (necesitamos saber la respuesta antes de continuar) y TCP para el enrutamiento general del Gateway.
-
-3. **¿Por qué Redis y RabbitMQ si ambos son PUB/SUB?**
-   Cumplen roles distintos: **Redis** maneja el evento de **cierre** de la cita (`appointment.completed` → descontar stock + facturar), y **RabbitMQ** maneja el evento de **apertura** (`appointment.created` → reservar stock). RabbitMQ además aporta exchange fanout + cola durable, mientras que Redis es fire-and-forget. Tener dos brokers demuestra dominio de un segundo transporte (requisito del Avance 2).
-
-4. **¿Qué pasa si MS2 (Services-Staff) se cae?**
-   La creación de citas **falla** porque MS1 no puede validar el estilista por gRPC (lanza `BadRequestException` con "El servicio de estilistas no está disponible"). La facturación también falla porque MS3 valida contra MS2 por TCP. Esto demuestra **acoplamiento temporal** en la cadena síncrona. En cambio, el flujo asíncrono (Redis/RabbitMQ) no se bloquea.
-
-5. **¿Cómo manejan las excepciones?**
-   Con filtros globales por transporte: `AllExceptionsFilter` (HTTP en Gateway), `RpcExceptionFilter` (TCP en MS1/MS2/MS3) y `GrpcExceptionFilter` (gRPC en MS2). En gRPC distinguimos tres casos: estilista inexistente (`NotFoundException`), inactivo (`BadRequestException`) y servicio caído (`UNAVAILABLE` → `BadRequestException` con mensaje explícito). Todos los errores se capturan en **Sentry**.
-
-6. **¿Cuánto dura el JWT y cómo se configura?**
-   El token dura **24 h** por defecto, configurable vía la variable de entorno `JWT_EXPIRES_IN` (formato `ms`, ej. `24h`, `1d`, `3600`). La expiración se aplica al firmar el token en `auth.service.ts` y se valida automáticamente por `JwtStrategy`. Si el token expira, el Guard responde **401 Unauthorized**.
-
-7. **¿Qué patrones de diseño aplicaron?**
-   **API Gateway** (punto único de entrada con JWT/roles), **Publisher/Subscriber** (Redis y RabbitMQ), **Repository** (TypeORM), **Adapter** (`RabbitmqPublisherService`/`RabbitmqConsumerService` envolviendo `amqplib`), **DTO + Pipes** (SRP en validación) y **Contrato/RPC** (gRPC con `.proto`). En SOLID: SRP (cada servicio una responsabilidad), DIP (dependencias por inyección/interfaces de NestJS), OCP (filtros de excepción extensibles por transporte).
+✍️ <<Enlace a diapositivas + guion. Runbook de la demo (levantar → login → ruta protegida → operación integrada → error en Sentry). Preguntas frecuentes preparadas.>>
 
 ## 🏷️ Tags de entrega
-- `v1-avance1` — 15-07-2026 · `v2-avance2` — 18-07-2026 · `v3-final` — 29-07-2026
+- `v1-avance1` — 15-07-2026 · `v2-avance2` — 18-07-2026 · `v3-final` — 22-07-2026
