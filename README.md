@@ -21,10 +21,10 @@ El dominio se mantiene deliberadamente simple para centrar el esfuerzo en la **c
 ### 📦 Microservicios
 
 - **MS 1 — Gestión de Citas (Appointments):**  
-  Responsable de la lógica central de reservas. Maneja el CRUD de citas, verifica disponibilidad de horarios (evitando overlapping), controla los estados de la cita (Pendiente, Confirmada, En Proceso, Completada, Cancelada, No Asistió) y publica eventos en Redis cuando una cita cambia de estado (ej. `appointment.completed`). Se comunica vía TCP con el Gateway y con MS 2 para validar estilistas y servicios.
+  Responsable de la lógica central de reservas. Maneja el CRUD de citas, verifica disponibilidad de horarios (evitando overlapping), controla los estados de la cita (Pendiente, Confirmada, En Proceso, Completada, Cancelada, No Asistió) y publica eventos en Redis cuando una cita cambia de estado (ej. `appointment.completed`). Se comunica vía TCP con el Gateway y vía gRPC (puerto 50051) con MS 2 para validar estilistas y servicios de forma síncrona con contrato tipado.
 
 - **MS 2 — Servicios y Personal (Services & Staff):**  
-  Administra el catálogo de la peluquería. Gestiona el CRUD de **estilistas** (nombre, especialidades, horario laboral) y **servicios** (nombre, precio, duración, categoría). Mantiene la relación Many-to-Many entre estilistas y servicios, permitiendo asignar qué profesionales están capacitados para realizar cada servicio. Solo utiliza comunicación síncrona (TCP).
+  Administra el catálogo de la peluquería. Gestiona el CRUD de **estilistas** (nombre, especialidades, horario laboral) y **servicios** (nombre, precio, duración, categoría). Mantiene la relación Many-to-Many entre estilistas y servicios, permitiendo asignar qué profesionales están capacitados para realizar cada servicio. Expone comunicación síncrona por TCP (puerto 3002) y gRPC (puerto 50051) para validaciones con contrato tipado desde MS 1.
 
 - **MS 3 — Inventario y Facturación (Inventory & Billing):**  
   Controla los insumos profesionales y productos de venta al público (retail). Gestiona el stock de productos, genera alertas de stock bajo y descuenta automáticamente del inventario cuando una cita se completa (escuchando eventos de Redis como `appointment.completed`). También genera facturas asociadas a cada cita, calculando el total a pagar (servicio + productos adicionales) y permite consultar resúmenes diarios y mensuales de ventas.
@@ -38,7 +38,7 @@ El dominio se mantiene deliberadamente simple para centrar el esfuerzo en la **c
 
 El objetivo principal es **demostrar el funcionamiento de una arquitectura de microservicios** en un escenario real, abordando:
 
-- **Comunicación síncrona (TCP):** Gateway → MS 1 → MS 2 para validaciones en tiempo real.
+- **Comunicación síncrona (TCP + gRPC):** Gateway → MS 1 (TCP) → MS 2 (gRPC, puerto 50051) para validaciones en tiempo real con contrato tipado.
 - **Comunicación asíncrona (Redis):** MS 1 → Redis → MS 3 para desacoplar procesos como consumo de inventario y facturación.
 - **Acoplamiento temporal:** Evidenciar cómo una falla en un servicio síncrono afecta toda la cadena, mientras que el flujo asíncrono continúa funcionando.
 - **Medición de latencia:** Comparar los tiempos de respuesta entre el camino síncrono y el asíncrono.
@@ -210,7 +210,7 @@ graph LR
 | **Publisher/Subscriber** | MS1 publica eventos, MS3 los consume sin acoplamiento | Redis PUB/SUB (Avance 1) y RabbitMQ PUB/SUB (Avance 2) |
 | **Repository Pattern** | TypeORM repositories encapsulan acceso a datos | Todos los microservicios |
 | **DTO + Pipes (SRP)** | Separación de responsabilidades: validación en DTOs | `appointments/src/dto/, inventory-system/src/dto, services-staff/src/dto` |
-| **Exception Filters** | Manejo consistente de errores en handlers TCP | `try/catch` en servicios |
+| **Exception Filters** | Manejo consistente de errores con filtros globales por transporte | `AllExceptionsFilter` (HTTP en Gateway), `RpcExceptionFilter` (TCP en MS1/MS2/MS3), `GrpcExceptionFilter` (gRPC en MS2) + captura en Sentry |
 | **DIP** | Los servicios dependen de abstracciones (interfaces) de NestJS | `@Injectable()` |
 | **Contrato/RPC (gRPC)** | Comunicación tipada mediante `.proto` compartido en el monorepo | `apps/proto/barber.proto`, MS1 (cliente) y MS2 (servidor) |
 | **Adapter** | Los servicios `RabbitmqPublisherService`/`RabbitmqConsumerService` envuelven la librería `amqplib` detrás de una interfaz simple (`publish`, `handleMessage`) | MS1 y MS3 |
@@ -426,6 +426,29 @@ En el **API Gateway** se implementó autenticación con JWT y autorización por 
 
 ### 🏗️ Diagrama final
 ✍️ <<Sistema integrado>>
+
+---
+
+## 📸 Evidencias de Funcionamiento
+
+### gRPC — Validación síncrona entre MS1 y MS2
+
+MS1 (Appointments) consulta a MS2 (Services-Staff) vía gRPC (puerto 50051) para validar que el estilista y el servicio existen y están activos antes de crear una cita. La llamada usa el contrato definido en `apps/proto/barber.proto`.
+
+![gRPC Execution Proof](docs/evidencias/grpc-proof.png)
+
+### Sentry — Error Tracking y Observabilidad
+
+Cada microservicio inicializa Sentry al arrancar. Los errores 5xx, excepciones RPC/gRPC y fallos de conexión (RabbitMQ, gRPC) se capturan automáticamente con tags de servicio y contexto extra. Los errores 4xx se registran como breadcrumbs.
+
+| Servicio | Filtro de excepciones | Integración Sentry |
+|---|---|---|
+| Gateway (HTTP) | `AllExceptionsFilter` | `expressErrorHandler` + `captureException` |
+| Appointments (TCP) | `RpcExceptionFilter` | `captureException` con tag `service:appointments` |
+| Services-Staff (TCP+gRPC) | `RpcExceptionFilter` + `GrpcExceptionFilter` | `captureException` con tag `service:services-staff` |
+| Inventory-Billing (TCP) | `RpcExceptionFilter` | `captureException` con tag `service:inventory-billing` |
+
+Endpoint de verificación: `GET /api/health` muestra el estado de Sentry (`enabled`/`disabled`) y `GET /api/health/sentry-test` lanza un error de prueba para confirmar la captura en el dashboard.
 
 ---
 

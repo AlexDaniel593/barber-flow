@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/commo
 import * as amqp from 'amqp-connection-manager';
 import { ChannelWrapper } from 'amqp-connection-manager';
 import { ConfirmChannel } from 'amqplib';
+import * as Sentry from '@sentry/node';
 
 const EXCHANGE = 'appointments.events';
 
@@ -15,10 +16,22 @@ export class RabbitmqPublisherService implements OnModuleInit, OnModuleDestroy {
     const url = process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672';
     this.connection = amqp.connect([url]);
 
-    this.connection.on('connect', () => this.logger.log('RabbitMQ publisher connected'));
-    this.connection.on('disconnect', (params) =>
-      this.logger.warn(`RabbitMQ publisher disconnected: ${params?.err?.message}`),
-    );
+    this.connection.on('connect', () => {
+      this.logger.log('RabbitMQ publisher connected');
+      Sentry.addBreadcrumb({
+        category: 'rabbitmq',
+        message: 'RabbitMQ publisher connected',
+        level: 'info',
+      });
+    });
+    this.connection.on('disconnect', (params) => {
+      this.logger.warn(`RabbitMQ publisher disconnected: ${params?.err?.message}`);
+      Sentry.addBreadcrumb({
+        category: 'rabbitmq',
+        message: `RabbitMQ publisher disconnected: ${params?.err?.message}`,
+        level: 'warning',
+      });
+    });
 
     this.channel = this.connection.createChannel({
       json: true,
@@ -30,6 +43,7 @@ export class RabbitmqPublisherService implements OnModuleInit, OnModuleDestroy {
       this.logger.log(`RabbitMQ channel ready on exchange "${EXCHANGE}"`);
     } catch (error) {
       this.logger.warn(`RabbitMQ no disponible al iniciar: ${error.message}`);
+      Sentry.captureException(error);
     }
   }
 
@@ -46,11 +60,26 @@ export class RabbitmqPublisherService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.channel.publish(EXCHANGE, routingKey, payload);
       this.logger.log(`Published to RabbitMQ [${routingKey}]: ${JSON.stringify(payload)}`);
+      Sentry.addBreadcrumb({
+        category: 'rabbitmq',
+        message: `Published [${routingKey}]`,
+        level: 'info',
+        data: payload,
+      });
     } catch (error) {
       this.logger.error(
         `Error publishing to RabbitMQ [${routingKey}]: ${error.message}`,
         error.stack,
       );
+      Sentry.withScope((scope) => {
+        scope.setTag('service', 'appointments');
+        scope.setTag('component', 'rabbitmq-publisher');
+        scope.setContext('rabbitmq', {
+          routingKey,
+          exchange: EXCHANGE,
+        });
+        Sentry.captureException(error);
+      });
     }
   }
 }

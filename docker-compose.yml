@@ -84,6 +84,7 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       DB_DATABASE: services_staff_db
       NODE_ENV: production
+      SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -126,6 +127,7 @@ services:
       SVC_SERVICES_STAFF_HOST: services-staff
       SVC_SERVICES_STAFF_PORT: 3002
       SVC_STYLIST_GRPC_HOST: services-staff:50051
+      SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -168,6 +170,7 @@ services:
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
       SERVICES_STAFF_HOST: services-staff
       SERVICES_STAFF_PORT: 3002
+      SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -220,6 +223,7 @@ services:
       SVC_PEDIDOS_PORT: 3001
       SERVICES_INVENTORY_BILLING_HOST: inventory-billing
       SERVICES_INVENTORY_BILLING_PORT: 3003
+      SENTRY_DSN: ${SENTRY_DSN:-}
     ports:
       - "3000:3000"
     depends_on:

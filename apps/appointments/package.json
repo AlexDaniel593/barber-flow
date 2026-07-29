@@ -29,6 +29,7 @@
     "@nestjs/microservices": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/typeorm": "^11.0.0",
+    "@sentry/node": "^10.68.0",
     "amqp-connection-manager": "^4.1.15",
     "amqplib": "^0.10.9",
     "class-transformer": "^0.5.1",
